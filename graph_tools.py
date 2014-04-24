@@ -10,8 +10,8 @@ import cv2
 #----------------------------------------------------------------------------------------------------------------------
 #----------------------------------------------------------------------------------------------------------------------
 def make_neighborhood_matrix(im, nghood=4, roi=None):
-    im = np.array( im, ndmin=3 )
-    nslices, nrows, ncols = im.shape
+    im = np.array(im, ndmin=3)
+    n_slices, n_rows, n_cols = im.shape
 
     # initialize ROI
     if roi is None:
@@ -21,66 +21,66 @@ def make_neighborhood_matrix(im, nghood=4, roi=None):
     #     nslices = im.shape[2]
     # else:
     #     nslices = 1
-    npts = nrows * ncols * nslices
+    npts = n_rows * n_cols * n_slices
     # print 'start'
     if nghood == 8:
-        nr = np.array( [-1, -1, -1, 0, 0, 1, 1, 1] )
-        nc = np.array( [-1, 0, 1, -1, 1, -1, 0, 1] )
-        ns = np.zeros( nghood )
+        nr = np.array([-1, -1, -1, 0, 0, 1, 1, 1])
+        nc = np.array([-1, 0, 1, -1, 1, -1, 0, 1])
+        ns = np.zeros(nghood)
     elif nghood == 4:
-        nr = np.array( [-1, 0, 0, 1] )
-        nc = np.array( [0, -1, 1, 0] )
-        ns = np.zeros( nghood, dtype=np.int32 )
+        nr = np.array([-1, 0, 0, 1])
+        nc = np.array([0, -1, 1, 0])
+        ns = np.zeros(nghood, dtype=np.int32)
     elif nghood == 26:
-        nrCenter = np.array( [-1, -1, -1, 0, 0, 1, 1, 1] )
-        ncCenter = np.array( [-1, 0, 1, -1, 1, -1, 0, 1] )
-        nrBorder = np.zeros( [-1, -1, -1, 0, 0, 0, 1, 1, 1] )
-        ncBorder = np.array( [-1, 0, 1, -1, 0, 1, -1, 0, 1] )
-        nr = np.array( np.hstack( (nrBorder, nrCenter, nrBorder) ) )
-        nc = np.array( np.hstack( (ncBorder, ncCenter, ncBorder) ) )
-        ns = np.array( np.hstack( (-np.ones_like(nrBorder), np.zeros_like(nrCenter), np.ones_like(nrBorder)) ) )
+        nr_center = np.array([-1, -1, -1, 0, 0, 1, 1, 1])
+        nc_center = np.array([-1, 0, 1, -1, 1, -1, 0, 1])
+        nr_border = np.zeros([-1, -1, -1, 0, 0, 0, 1, 1, 1])
+        nc_border = np.array([-1, 0, 1, -1, 0, 1, -1, 0, 1])
+        nr = np.array(np.hstack((nr_border, nr_center, nr_border)))
+        nc = np.array(np.hstack((nc_border, nc_center, nc_border)))
+        ns = np.array(np.hstack((-np.ones_like(nr_border), np.zeros_like(nr_center), np.ones_like(nr_border))))
     elif nghood == 6:
-        nrCenter = np.array( [-1, 0, 0, 1] )
-        ncCenter = np.array( [0, -1, 1, 0] )
-        nrBorder = np.array( [0] )
-        ncBorder = np.array( [0] )
-        nr = np.array( np.hstack( (nrBorder, nrCenter, nrBorder) ) )
-        nc = np.array( np.hstack( (ncBorder, ncCenter, ncBorder) ) )
-        ns = np.array( np.hstack( (-np.ones_like(nrBorder), np.zeros_like(nrCenter), np.ones_like(nrBorder)) ) )
+        nr_center = np.array([-1, 0, 0, 1])
+        nc_center = np.array([0, -1, 1, 0])
+        nr_border = np.array([0])
+        nc_border = np.array([0])
+        nr = np.array(np.hstack((nr_border, nr_center, nr_border)))
+        nc = np.array(np.hstack((nc_border, nc_center, nc_border)))
+        ns = np.array(np.hstack((-np.ones_like(nr_border), np.zeros_like(nr_center), np.ones_like(nr_border))))
     else:
         print 'Wrong neighborhood passed. Exiting.'
         return None
 
-    lind = np.ravel_multi_index( np.indices( im.shape ), im.shape )  # linear indices in array form
-    lindv = np.reshape( lind, npts )  # linear indices in vector form
-    coordsv = np.array( np.unravel_index( lindv, im.shape ) )  # coords in array [dim * nvoxels]
+    lind = np.ravel_multi_index(np.indices(im.shape), im.shape)  # linear indices in array form
+    lindv = np.reshape(lind, npts)  # linear indices in vector form
+    coordsv = np.array(np.unravel_index(lindv, im.shape))  # coords in array [dim * nvoxels]
 
-    neighborsM = np.zeros( (nghood, npts) )
-    for i in range( npts ):
-        s, r, c = tuple( coordsv[:,i] )
-        for nghb in range(nghood ):
+    neighbors_m = np.zeros((nghood, npts))
+    for i in range(npts):
+        s, r, c = tuple(coordsv[:, i])
+        for nghb in range(nghood):
             rn = r + nr[nghb]
             cn = c + nc[nghb]
             sn = s + ns[nghb]
-            row_ok = rn < 0 or rn > (nrows-1)
-            col_ok = cn < 0 or cn > (ncols-1)
-            slice_ok = sn < 0 or sn > (nslices-1)
-            if row_ok or col_ok or slice_ok or not roi[sn, rn, cn]:
-                neighborsM[nghb, i] = np.NaN
+            row_ko = rn < 0 or rn > (n_rows - 1)
+            col_ko = cn < 0 or cn > (n_cols - 1)
+            slice_ko = sn < 0 or sn > (n_slices - 1)
+            if row_ko or col_ko or slice_ko or not roi[sn, rn, cn]:
+                neighbors_m[nghb, i] = np.NaN
             else:
-                indexN = np.ravel_multi_index( (sn, rn, cn), im.shape )
-                neighborsM[nghb, i] = indexN
+                indexN = np.ravel_multi_index((sn, rn, cn), im.shape)
+                neighbors_m[nghb, i] = indexN
 
-    return neighborsM
+    return neighbors_m
 
 
 #----------------------------------------------------------------------------------------------------------------------
 #----------------------------------------------------------------------------------------------------------------------
 def graph2img( g, size):
-    im = np.zeros( size, dtype=np.bool )
+    im = np.zeros(size, dtype=np.bool)
     nodes = g.nodes()
-    nodescoords = np.array( np.unravel_index( np.array(nodes, dtype=np.int), size ) )#.transpose()
-    im[nodescoords[0,:], nodescoords[1,:]] = 1
+    nodes_coords = np.array(np.unravel_index(np.array(nodes, dtype=np.int), size))
+    im[nodes_coords[0, :], nodes_coords[1, :]] = 1
     return im
 
 
@@ -90,22 +90,22 @@ def create_graph( im, nghood=4, wtype=3, talk_to_me=True ):
     if talk_to_me:
         print 'Creating graph...'
         print '\t- constructing neighborhood matrix...'
-    nghbm = make_neighborhood_matrix( im, nghood )
-    nnodes = nghbm.shape[1]
-    imv = np.reshape( im, nnodes ).astype(float)
+    nghbm = make_neighborhood_matrix(im, nghood)
+    n_nodes = nghbm.shape[1]
+    imv = np.reshape(im, n_nodes).astype(float)
     G = nx.Graph()
     #adding nodes
     if talk_to_me:
         print '\t- adding nodes...'
-    G.add_nodes_from( range(nnodes) )
+    G.add_nodes_from(range(n_nodes))
     #adding edges
     #sigma = imv.max() - imv.min()
     sigma = 10
     if talk_to_me:
         print '\t- adding edges...'
-    for n in range( nnodes ):
-        for nghbi in range( 1, nghood ):
-            nghb = nghbm[nghbi,n]
+    for n in range(n_nodes):
+        for nghbi in range(1, nghood):
+            nghb = nghbm[nghbi, n]
             if np.isnan(nghb):
                 continue
             if wtype == 1:
@@ -176,7 +176,7 @@ def make_neighborhood_matrix_from_suppxls(suppxls, suppxls_ints):
         if suppxl.ndim == 2:
             suppxl_dil = skimor.binary_dilation(suppxl, skimor.square(3))
         else:
-            suppxl_dil = scindimor.binary_dilation(suppxl, np.ones((3,3,3)))
+            suppxl_dil = scindimor.binary_dilation(suppxl, np.ones((3, 3, 3)))
         surround = suppxl_dil - suppxl
 
         labels = np.unique(suppxls[np.nonzero(surround)])
@@ -238,7 +238,7 @@ def create_graph_from_suppxls(im, wtype=3, suppxl_ints=None, suppxls=None, n_seg
 
 #----------------------------------------------------------------------------------------------------------------------
 #----------------------------------------------------------------------------------------------------------------------
-def splitMST( T, getimg=False, imshape=(0,0) ):
+def splitMST(T, getimg=False, imshape=(0,0)):
     maxw = 0
     maxn = 0
     maxnbr = 0
@@ -257,13 +257,13 @@ def splitMST( T, getimg=False, imshape=(0,0) ):
     if maxn == 0 and maxnbr == 0:# and len(T) == 2: #when splitting tree of two nodes
         maxn = T.nodes()[0]
         maxnbr = T.nodes()[1]
-    T.remove_edge( maxn, maxnbr )
-    cclist = nx.connected_component_subgraphs( T )
+    T.remove_edge(maxn, maxnbr)
+    cclist = nx.connected_component_subgraphs(T)
 
     if getimg:
-        ccim1 = graph2img( cclist[0], imshape )
+        ccim1 = graph2img(cclist[0], imshape)
         #ccim2 = graph2img( cclist[1], imshape )
-        ccim = np.where( ccim1, 1, 2)
+        ccim = np.where(ccim1, 1, 2)
         return cclist, ccim
     else:
         return cclist
@@ -271,9 +271,9 @@ def splitMST( T, getimg=False, imshape=(0,0) ):
 
 #----------------------------------------------------------------------------------------------------------------------
 #----------------------------------------------------------------------------------------------------------------------
-def getGraphCost( G ):
+def getGraphCost(G):
     wsum = 0
-    for u, v, edata in G.edges( data=True ):
+    for u, v, edata in G.edges(data=True):
         wsum += edata['weight']
     try:
         score = wsum / len(G.edges())
@@ -287,12 +287,12 @@ def getGraphCost( G ):
 
 def get_graph_dists(g, seed, maxd, shape):
     #compute dists in graph from current seed
-    dists, path = nx.single_source_dijkstra( g, seed, cutoff=maxd )
-    distsItemsArray = np.array(dists.items())
+    dists, path = nx.single_source_dijkstra(g, seed, cutoff=maxd)
+    dists_items_array = np.array(dists.items())
 
     #converting dists from tuple to image
-    distLayer = np.zeros( g.number_of_nodes() )
-    distLayer[ distsItemsArray[:,0].astype(np.uint32) ] = distsItemsArray[:,1]
-    distLayer = distLayer.reshape(shape)
+    dist_layer = np.zeros(g.number_of_nodes())
+    dist_layer[dists_items_array[:, 0].astype(np.uint32)] = dists_items_array[:, 1]
+    dist_layer = dist_layer.reshape(shape)
 
-    return distLayer
+    return dist_layer
