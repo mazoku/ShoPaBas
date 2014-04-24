@@ -9,9 +9,14 @@ import cv2
 
 #----------------------------------------------------------------------------------------------------------------------
 #----------------------------------------------------------------------------------------------------------------------
-def make_neighborhood_matrix(im, nghood=4):
+def make_neighborhood_matrix(im, nghood=4, roi=None):
     im = np.array( im, ndmin=3 )
     nslices, nrows, ncols = im.shape
+
+    # initialize ROI
+    if roi is None:
+        roi = np.ones(im.shape, dtype=np.bool)
+
     # if len(im.shape) == 3:
     #     nslices = im.shape[2]
     # else:
@@ -46,9 +51,9 @@ def make_neighborhood_matrix(im, nghood=4):
         print 'Wrong neighborhood passed. Exiting.'
         return None
 
-    lind = np.ravel_multi_index( np.indices( im.shape ), im.shape ) #linear indices in array form
-    lindv = np.reshape( lind, npts ) #linear indices in vector form
-    coordsv = np.array( np.unravel_index( lindv, im.shape ) ) #coords in array [dim * nvoxels]
+    lind = np.ravel_multi_index( np.indices( im.shape ), im.shape )  # linear indices in array form
+    lindv = np.reshape( lind, npts )  # linear indices in vector form
+    coordsv = np.array( np.unravel_index( lindv, im.shape ) )  # coords in array [dim * nvoxels]
 
     neighborsM = np.zeros( (nghood, npts) )
     for i in range( npts ):
@@ -57,7 +62,10 @@ def make_neighborhood_matrix(im, nghood=4):
             rn = r + nr[nghb]
             cn = c + nc[nghb]
             sn = s + ns[nghb]
-            if rn < 0 or rn > (nrows-1) or cn < 0 or cn > (ncols-1) or sn < 0 or sn > (nslices-1):
+            row_ok = rn < 0 or rn > (nrows-1)
+            col_ok = cn < 0 or cn > (ncols-1)
+            slice_ok = sn < 0 or sn > (nslices-1)
+            if row_ok or col_ok or slice_ok or not roi[sn, rn, cn]:
                 neighborsM[nghb, i] = np.NaN
             else:
                 indexN = np.ravel_multi_index( (sn, rn, cn), im.shape )
