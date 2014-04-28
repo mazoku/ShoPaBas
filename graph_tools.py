@@ -58,6 +58,9 @@ def make_neighborhood_matrix(im, nghood=4, roi=None):
     neighbors_m = np.zeros((nghood, npts))
     for i in range(npts):
         s, r, c = tuple(coordsv[:, i])
+        # if point doesn't lie in the roi then continue with another one
+        if not roi[s, r, n]:
+            continue
         for nghb in range(nghood):
             rn = r + nr[nghb]
             cn = c + nc[nghb]
@@ -168,15 +171,28 @@ def remove_empty_suppxls(suppxls):
     return new_supps
 
 
-def make_neighborhood_matrix_from_suppxls(suppxls, suppxls_ints):
+def make_neighborhood_matrix_from_suppxls(suppxls, suppxls_ints, roi=None):
+
+    # initialize ROI
+    if roi is None:
+        roi = np.ones(suppxls.shape, dtype=np.bool)
+
     n_suppxls = suppxls.max() + 1
     nghb_m = list()
     for i in range(n_suppxls):
         suppxl = suppxls == i
+        # if suppxl doesn't lie in the roi, continue with another one
+        if not np.any(suppxl * roi):
+            continue
         if suppxl.ndim == 2:
             suppxl_dil = skimor.binary_dilation(suppxl, skimor.square(3))
         else:
             suppxl_dil = scindimor.binary_dilation(suppxl, np.ones((3, 3, 3)))
+
+        # mask the roi
+        suppxl_dil *= roi
+
+        # get the dilation band
         surround = suppxl_dil - suppxl
 
         labels = np.unique(suppxls[np.nonzero(surround)])
@@ -184,7 +200,7 @@ def make_neighborhood_matrix_from_suppxls(suppxls, suppxls_ints):
     return nghb_m
 
 
-def create_graph_from_suppxls(im, wtype=3, suppxl_ints=None, suppxls=None, n_segments=100, compactness=10):
+def create_graph_from_suppxls(im, wtype=3, roi=None, suppxl_ints=None, suppxls=None, n_segments=100, compactness=10):
     if suppxls is None:
         if im.ndim == 2:
             im_rgb = cv2.cvtColor(im, cv2.COLOR_GRAY2RGB)
@@ -212,7 +228,7 @@ def create_graph_from_suppxls(im, wtype=3, suppxl_ints=None, suppxls=None, n_seg
         suppxl_ints_v[i] = val
 
     # neighbothood matrix
-    nghb_m = make_neighborhood_matrix_from_suppxls(suppxls, suppxl_ints)
+    nghb_m = make_neighborhood_matrix_from_suppxls(suppxls, suppxl_ints, roi)
 
     G = nx.Graph()
 

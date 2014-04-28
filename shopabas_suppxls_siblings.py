@@ -564,7 +564,7 @@ def run(data, mask, slice, max_d=50, using_superpixels=False, method_type='autom
 
     print 'Graph under construction...'
     if using_superpixels:
-        G, suppxls = gt.create_graph_from_suppxls(en, suppxls=suppxls, suppxl_ints=suppxl_ints_im, wtype=wtype)
+        G, suppxls = gt.create_graph_from_suppxls(en, roi=mask, suppxls=suppxls, suppxl_ints=suppxl_ints_im, wtype=wtype)
     else:
         G = create_graph(en, wtype=wtype)
         suppxls = None
