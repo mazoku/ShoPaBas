@@ -1,11 +1,13 @@
 __author__ = 'Ryba'
 
 import numpy as np
+import matplotlib.pyplot as plt
 import networkx as nx
 import skimage.segmentation as skiseg
 import skimage.morphology as skimor
 import scipy.ndimage.morphology as scindimor
 import cv2
+import scipy.ndimage.measurements as scindimea
 
 #----------------------------------------------------------------------------------------------------------------------
 #----------------------------------------------------------------------------------------------------------------------
@@ -179,24 +181,46 @@ def make_neighborhood_matrix_from_suppxls(suppxls, suppxls_ints, roi=None):
 
     n_suppxls = suppxls.max() + 1
     nghb_m = list()
+    # inside = np.zeros(suppxls.shape, dtype=np.uint8)
+    # outside = np.zeros(suppxls.shape, dtype=np.uint8)
     for i in range(n_suppxls):
         suppxl = suppxls == i
         # if suppxl doesn't lie in the roi, continue with another one
-        if not np.any(suppxl * roi):
-            continue
-        if suppxl.ndim == 2:
-            suppxl_dil = skimor.binary_dilation(suppxl, skimor.square(3))
+        if np.any(suppxl * roi):
+            if suppxl.ndim == 2:
+                suppxl_dil = skimor.binary_dilation(suppxl, skimor.square(3))
+            else:
+                suppxl_dil = scindimor.binary_dilation(suppxl, np.ones((3, 3, 3)))
+
+            # mask the roi
+            suppxl_dil *= roi
+
+            # get the dilation band
+            surround = suppxl_dil - suppxl
+
+            labels = np.unique(suppxls[np.nonzero(surround)])
+            # inside += (i+1) * suppxl
+
+            # print labels
+            # plt.figure()
+            # plt.subplot(121), plt.imshow(suppxl), plt.colorbar()
+            # plt.subplot(122), plt.imshow((suppxls+1) * surround, interpolation='nearest'), plt.colorbar()
+            # plt.show()
         else:
-            suppxl_dil = scindimor.binary_dilation(suppxl, np.ones((3, 3, 3)))
-
-        # mask the roi
-        suppxl_dil *= roi
-
-        # get the dilation band
-        surround = suppxl_dil - suppxl
-
-        labels = np.unique(suppxls[np.nonzero(surround)])
+            labels = []
+            # outside += (i+1) * suppxl
         nghb_m.append(labels)
+    # inside = skimor.label(inside, neighbors=8, background=0)
+    # outside = skimor.label(outside, neighbors=8, background=0)
+    # print 'inside: ', inside.max() + 1
+    # print 'outside: ', outside.max() + 1
+    # print 'n suppxls: ', n_suppxls
+    # plt.figure()
+    # plt.subplot(121), plt.imshow(inside, interpolation='nearest')
+    # plt.subplot(122), plt.imshow(outside, interpolation='nearest')
+    # plt.figure()
+    # plt.imshow(suppxls, interpolation='nearest')
+    # plt.show()
     return nghb_m
 
 
@@ -232,11 +256,15 @@ def create_graph_from_suppxls(im, wtype=3, roi=None, suppxl_ints=None, suppxls=N
 
     G = nx.Graph()
 
+    # n_nodes = len(nghb_m) - nghb_m.count([])
+    n_nodes = len(nghb_m)  # this is OK if suppxls are relabeled
+
     # adding nodes
     G.add_nodes_from(range(n_nodes))
 
     # adding edges
     sigma = 10
+
     for n in range(n_nodes):
         nghbs = nghb_m[n]
         for i in range(len(nghbs)):

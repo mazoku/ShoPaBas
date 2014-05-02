@@ -263,7 +263,7 @@ def smoothing_tv(data, weight=0.1, pseudo_3D=True, multichannel=False, sliceId=2
     return data
 
 
-def analyse_histogram(data, roi=None, debug=False, dens_min=20, dens_max=255, minT=0.95, maxT=1.05):
+def analyse_histogram(data, roi=None, debug=False, dens_min=20, dens_max=255, min_t=0.95, max_t=1.05):
     if roi == None:
         #roi = np.ones(data.shape, dtype=np.bool)
         roi = np.logical_and(data >= dens_min, data <= dens_max)
@@ -272,9 +272,9 @@ def analyse_histogram(data, roi=None, debug=False, dens_min=20, dens_max=255, mi
     hist, bins = skexp.histogram(voxels)
     max_peakIdx = hist.argmax()
 
-    minT = minT * hist[max_peakIdx]
-    maxT = maxT * hist[max_peakIdx]
-    histTIdxs = (hist >= minT) * (hist <= maxT)
+    min_t = min_t * hist[max_peakIdx]
+    max_t = max_t * hist[max_peakIdx]
+    histTIdxs = (hist >= min_t) * (hist <= max_t)
     histTIdxs = np.nonzero(histTIdxs)[0]
     histTIdxs = histTIdxs.astype(np.int)
 
@@ -282,7 +282,7 @@ def analyse_histogram(data, roi=None, debug=False, dens_min=20, dens_max=255, mi
     class1TMax = bins[histTIdxs[-1]]
 
     liver = data * (roi > 0)
-    class1 = np.where( (liver >= class1TMin) * (liver <= class1TMax), 1, 0)
+    class1 = np.where((liver >= class1TMin) * (liver <= class1TMax), 1, 0)
 
     if debug:
         plt.figure()
@@ -315,7 +315,7 @@ def intensity_probability(data, std=20, roi=None, dens_min=10, dens_max=255):
 
     prb = scista.norm(loc=mu, scale=std)
 
-    print('liver pdf: mu = %i, std = %i'%(mu, std))
+    print('liver pdf: mu = %i, std = %i' % (mu, std))
 
     # plt.figure()
     # plt.plot(bins, hist)
@@ -330,9 +330,9 @@ def intensity_probability(data, std=20, roi=None, dens_min=10, dens_max=255):
     n_elems = coords.shape[0]
     for i in range(n_elems):
         if data.ndim == 3:
-            probs[coords[i,0], coords[i,1], coords[i,2]] = probs_L[i]
+            probs[coords[i, 0], coords[i, 1], coords[i, 2]] = probs_L[i]
         else:
-            probs[coords[i,0], coords[i,1]] = probs_L[i]
+            probs[coords[i, 0], coords[i, 1]] = probs_L[i]
 
     return probs
 
@@ -351,9 +351,9 @@ def get_zunics_compatness(obj):
 def get_central_moment(obj, p, q, r):
     elems = np.argwhere(obj)
     m000 = obj.sum()
-    m100 = (elems[:,0]).sum()
-    m010 = (elems[:,1]).sum()
-    m001 = (elems[:,2]).sum()
+    m100 = (elems[:, 0]).sum()
+    m010 = (elems[:, 1]).sum()
+    m001 = (elems[:, 2]).sum()
     xc = m100 / m000
     yc = m010 / m000
     zc = m001 / m000
@@ -367,29 +367,29 @@ def get_central_moment(obj, p, q, r):
 
 def opening3D(data, selem=skimor.disk(3)):
     for i in range(data.shape[0]):
-        data[i,:,:] = skimor.binary_opening(data[i,:,:], selem)
+        data[i, :, :] = skimor.binary_opening(data[i, :, :], selem)
     return data
 
 
 def closing3D(data, selem=skimor.disk(3)):
     for i in range(data.shape[0]):
-        data[i,:,:] = skimor.binary_closing(data[i,:,:], selem)
+        data[i, :, :] = skimor.binary_closing(data[i, :, :], selem)
     return data
 
 
 def resize3D(data, scale, sliceId=2):
     if sliceId == 2:
         n_slices = data.shape[2]
-        new_shape = cv2.resize(data[:,:,0], None, fx=scale, fy=scale).shape
-        new_data = np.zeros(np.hstack((new_shape,n_slices)))
+        new_shape = cv2.resize(data[:, :, 0], None, fx=scale, fy=scale).shape
+        new_data = np.zeros(np.hstack((new_shape, n_slices)))
         for i in range(n_slices):
-            new_data[:,:,i] = cv2.resize(data[:,:,i], None, fx=scale, fy=scale)
+            new_data[:, :, i] = cv2.resize(data[:, :, i], None, fx=scale, fy=scale)
     elif sliceId == 0:
         n_slices = data.shape[0]
-        new_shape = cv2.resize(data[0,:,:], None, fx=scale, fy=scale).shape
+        new_shape = cv2.resize(data[0, :, :], None, fx=scale, fy=scale).shape
         new_data = np.zeros(np.hstack((n_slices, np.array(new_shape))))
         for i in range(n_slices):
-            new_data[i,:,:] = cv2.resize(data[i,:,:], None, fx=scale, fy=scale)
+            new_data[i, :, :] = cv2.resize(data[i, :, :], None, fx=scale, fy=scale)
     return new_data
 
 
@@ -466,11 +466,11 @@ def slics_3D(im, pseudo_3D=True, n_segments=100, get_slicewise=False):
     if not pseudo_3D:
         # need to convert to RGB image
         im_rgb = np.zeros((im.shape[0], im.shape[1], im.shape[2], 3))
-        im_rgb[:,:,:,0] = im
-        im_rgb[:,:,:,1] = im
-        im_rgb[:,:,:,2] = im
+        im_rgb[:, :, :, 0] = im
+        im_rgb[:, :, :, 1] = im
+        im_rgb[:, :, :, 2] = im
 
-        suppxls = skiseg.slic(im_rgb, n_segments=n_segments, spacing=(2,1,1))
+        suppxls = skiseg.slic(im_rgb, n_segments=n_segments, spacing=(2, 1, 1))
 
     else:
         suppxls = np.zeros(im.shape)
@@ -478,10 +478,10 @@ def slics_3D(im, pseudo_3D=True, n_segments=100, get_slicewise=False):
             suppxls_slicewise = np.zeros(im.shape)
         offset = 0
         for i in range(im.shape[0]):
-            suppxl = skiseg.slic(cv2.cvtColor(im[i,:,:], cv2.COLOR_GRAY2RGB), n_segments=n_segments)
-            suppxls[i,:,:] = suppxl + offset
+            suppxl = skiseg.slic(cv2.cvtColor(im[i, :, :], cv2.COLOR_GRAY2RGB), n_segments=n_segments)
+            suppxls[i, :, :] = suppxl + offset
             if get_slicewise:
-                suppxls_slicewise[i,:,:] = suppxl
+                suppxls_slicewise[i, :, :] = suppxl
             offset = suppxls.max() + 1
 
     if get_slicewise:
@@ -527,7 +527,10 @@ def suppxl_ints2im(suppxls, suppxl_ints=None, im=None):
     if suppxl_ints is None and im is not None:
         suppxl_ints = get_superpxl_intensities(im, suppxls)
 
-    for i in np.unique(suppxls):
+    labels = np.unique(suppxls)
+    labels = labels[labels >= 0]
+    # for i in np.unique(suppxls):
+    for i in labels:
         sup = suppxls == i
         val = suppxl_ints[i]
         suppxl_ints_im[np.nonzero(sup)] = val

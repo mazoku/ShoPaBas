@@ -7,6 +7,7 @@ import graph_tools as gt
 import cv2
 import skimage.morphology as skimor
 import skimage.segmentation as skiseg
+import skimage.measure as skimea
 import misc
 import networkx as nx
 import scipy.ndimage.morphology as scindimor
@@ -208,6 +209,49 @@ def get_shopabas(G, seed, max_d, suppxls, im, using_superpixels, init_dist_val):
     return dist_layer, energy_s
 
 
+def get_features(labels, nlabels):
+    features = np.zeros((nlabels, 2))
+    for lab in range(nlabels):
+        obj = labels==lab
+        area = obj.sum()
+        if labels.ndim == 2:
+            strel = np.ones((3, 3), dtype=np.bool)
+        else:
+            strel = np.ones((3,3,3), dtype=np.bool)
+        obj = skimor.binary_closing(obj, strel)
+        # compactness = tools.get_zunics_compatness(obj)
+        ecc = skimea.regionprops(obj)[0]['eccentricity']
+        features[lab, 0] = area
+        # features[lab - 1, 1] = compactness
+        features[lab, 1] = ecc
+
+        # print 'size = %i' % size
+        # # print 'compactness = %.3f' % compactness
+        # print 'eccentricity = %.3f' % ecc
+        # plt.figure()
+        # plt.imshow(obj, interpolation='nearest')
+        # plt.title('aarea = %i, ecc = %.2f' % (area, ecc))
+        # plt.show()
+    return features
+
+
+def filter_false_objects(label_im, max_ecc=0.5, min_area=10):
+    n_labels = label_im.max() + 1
+
+    # computing object features
+    features = get_features(label_im, n_labels)
+
+    # filtering objects with respect to their features
+    area_ok = features[:, 0] >= min_area
+    comp_ok = features[:, 1] <= max_ecc
+    features_ok = np.logical_and(area_ok, comp_ok)
+
+    objs_ok = label_im.copy()
+    for i in np.argwhere(features_ok == 0):
+        objs_ok = np.where(label_im == i, -1, objs_ok)
+    return objs_ok
+
+
 def iterate(G, im, mask, max_d=10, max_iter=10, using_superpixels=False, suppxls=None, is_interactive=False):
     if im.ndim == 3:
         n_slices, n_rows, n_cols = im.shape
@@ -262,7 +306,8 @@ def iterate(G, im, mask, max_d=10, max_iter=10, using_superpixels=False, suppxls
         else:
             linx = np.ravel_multi_index(coor, im.shape)
 
-        py3DSeedEditor.py3DSeedEditor(im, contour=suppxls==linx).show()
+        # py3DSeedEditor.py3DSeedEditor(im, contour=suppxls == linx).show()
+        # draw_overlays(suppxls, suppxls == linx)
 
         seeds = set()
         seeds.add(linx)
@@ -277,12 +322,19 @@ def iterate(G, im, mask, max_d=10, max_iter=10, using_superpixels=False, suppxls
             # najdu shopabas
             dist_layer, energy_s = get_shopabas(G, seed, max_d, suppxls, im, using_superpixels, init_dist_val)
 
+            # plt.figure()
+            # plt.subplot(121), plt.imshow(dist_layer, 'gray')
+
             # pokud byl uz bod nekam prirazen s mensi vzdalenosti, tak se neprelabeluje
             # if im.ndim == 2:
             #     masked_layer += np.argmin(np.dstack((dist_im, dist_layer)), axis=2) == 1
             # else:
             #     masked_layer += np.where(dist_layer <= dist_im, 1, 0)
-            masked_layer += np.where(dist_layer <= dist_im, 1, 0)
+            masked_layer = np.logical_or(masked_layer, dist_layer < dist_im)
+
+            # plt.subplot(122), plt.imshow(masked_layer, 'gray')
+            # plt.show()
+
 
             # vymaskuji energii shopabasu podle aktualni masky
             energy_s_sib_im = energy_s.reshape(im.shape)
@@ -308,6 +360,8 @@ def iterate(G, im, mask, max_d=10, max_iter=10, using_superpixels=False, suppxls
 
             seeds = seeds.union(siblings)
 
+        # draw_overlays(suppxls, masked_layer)
+
         # urceni noveho labelu
         mergers = get_mergers_felzenswalb(G, masked_layer, suppxls, label_im)
         if mergers:
@@ -331,7 +385,7 @@ def iterate(G, im, mask, max_d=10, max_iter=10, using_superpixels=False, suppxls
             break
 
         # visualization ----------------------------------------------------------------------------------
-        visualize(im, energy_s_im, srcs_en_im, label_im, seed_coords_l, coor, is_interactive)
+        # visualize(im, energy_s_im, srcs_en_im, label_im, seed_coords_l, coor, is_interactive)
 
     # final visualization -----------------------------------------------------------------------------
     # visualize(im, energy_s_im, srcs_en_im, label_im, seed_coords_l, coor, is_interactive)
@@ -339,13 +393,34 @@ def iterate(G, im, mask, max_d=10, max_iter=10, using_superpixels=False, suppxls
 
     # plt.figure()
     # plt.imshow(im, 'gray')
-    #
-    # plt.figure()
-    # plt.imshow(label_im, 'jet')
-    #
+
+    plt.figure()
+    plt.imshow(label_im, 'jet', interpolation='nearest')
+
     # plt.figure()
     # plt.imshow(skiseg.mark_boundaries(im, label_im))
     # plt.show()
+
+    plt.figure()
+    plt.imshow(label_im, interpolation='nearest'), plt.hold(True), plt.axis('image')
+    for coor in seed_coords_l:
+        plt.plot(coor[1], coor[0], 'ro')
+    plt.title('label_im')
+
+    # plt.show()
+
+    # plt.figure()
+    # plt.imshow(label_im, interpolation='nearest')
+    # maxi = label_im.max()
+
+    # filtration of false objects
+    label_im = filter_false_objects(label_im)
+
+    # plt.figure()
+    # plt.imshow(label_im, interpolation='nearest', vmax=maxi)
+    # plt.show()
+
+    return label_im, seed_coords_l
 
 
 def get_siblings(dists, suppxls, im, seed_idx, max_diff=2):
@@ -524,9 +599,10 @@ def run(data, mask, slice, max_d=50, using_superpixels=False, method_type='autom
     if mask == None:
         mask = np.ones(data.shape, dtype=np.bool)
 
-    # img = data[slice, :, :]
-    # mask = mask[slice, :, :].astype(np.bool)
-    img = data
+    img = data[slice, :, :]
+    mask = mask[slice, :, :].astype(np.bool)
+    mask_orig = mask.copy()
+    # img = data
 
     img, mask = tools.crop_to_bbox(img, mask)
 
@@ -546,11 +622,23 @@ def run(data, mask, slice, max_d=50, using_superpixels=False, method_type='autom
     #TODO: graf vytvaret pouze ze superpixelu v masce!!!
     print 'Deriving superpixels...'
     # suppxls, suppxls_sw = tools.slics_3D(en, n_segments=100, get_slicewise=True)
-    suppxls = tools.slics_3D(en, n_segments=100, pseudo_3D=False)
+    # suppxls = tools.slics_3D(en, n_segments=100, pseudo_3D=False)
+    suppxls = skiseg.slic(cv2.cvtColor(liver_s, cv2.COLOR_GRAY2RGB))
     # py3DSeedEditor.py3DSeedEditor(suppxls).show()
+
+    # plt.figure()
+    # plt.imshow(skiseg.mark_boundaries(liver_s, suppxls))
+    # plt.show()
 
     print 'Removing empty superpixels...'
     suppxls = tools.remove_empty_suppxls(suppxls)
+
+    # mask superpixels
+
+    suppxls = mask * (suppxls + 1)  # +1 because suppxls starts with 0
+    suppxls -= 1  # -1 to shift background to -1 and suppxls first index back to 0
+    # relabel them to overcome problems with suprepixels cutted with ROI
+    suppxls = skimor.label(suppxls, background=-1)
 
     print 'Calculating superpixel intensities...'
     suppxl_ints_im = tools.suppxl_ints2im(suppxls, im=en)
@@ -565,12 +653,20 @@ def run(data, mask, slice, max_d=50, using_superpixels=False, method_type='autom
     print 'Graph under construction...'
     if using_superpixels:
         G, suppxls = gt.create_graph_from_suppxls(en, roi=mask, suppxls=suppxls, suppxl_ints=suppxl_ints_im, wtype=wtype)
+        # plt.figure()
+        # plt.imshow(suppxls, interpolation='nearest'), plt.title('Graph created from these superpixels')
+        # plt.show()
     else:
         G = create_graph(en, wtype=wtype)
         suppxls = None
     print '...done.'
 
-    iterate(G, liver_s, mask, max_d=max_d, max_iter=max_iter, using_superpixels=using_superpixels, suppxls=suppxls, is_interactive=method_type=='interactive')
+    label_im, seed_coords_l = iterate(G, liver_s, mask, max_d=max_d, max_iter=max_iter, using_superpixels=using_superpixels, suppxls=suppxls, is_interactive=method_type=='interactive')
+
+    data_orig, mask_orig = tools.crop_to_bbox(data[slice, :, :], mask_orig)
+    plt.figure()
+    plt.imshow(skiseg.mark_boundaries(data_orig, label_im))
+    plt.show()
 
 
 #-----------------------------------------------------------------------------------------------------
@@ -585,6 +681,10 @@ if __name__ == "__main__":
     data3d = data['data3d']
     data3d = tools.windowing(data3d, level=50+(-1000 - data3d.min()), width=300, sliceId=0)
     segmentation = data['segmentation'].astype(np.uint8)
+
+    # plt.figure()
+    # plt.imshow(data3d[12,:,:], 'gray')
+    # plt.show()
 
     # downscaling
     scale = 0.5
