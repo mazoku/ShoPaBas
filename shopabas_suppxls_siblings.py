@@ -12,6 +12,7 @@ import misc
 import networkx as nx
 import scipy.ndimage.morphology as scindimor
 import scipy.ndimage.measurements as  scindimea
+import scipy.ndimage.interpolation as scindiint
 import pylab
 import py3DSeedEditor
 
@@ -115,14 +116,17 @@ def get_centers_of_non_labeled_areas(label_im, mask):
         labels = skimor.label(non_labeled_im, background=0)
     else:
         labels = scindimea.label(non_labeled_im)[0]
-    n_labels = labels.max() + 1
+    # n_labels = labels.max() + 1
+    labels_v = np.unique(labels[np.nonzero(non_labeled_im)])
+    n_labels = len(labels_v)
     cent_dists = np.zeros(n_labels)
     cent_idxs = -1 * np.zeros(n_labels, dtype=np.int)
 
     dists = scindimor.distance_transform_edt(labels + 1)
 
     for i in range(n_labels):
-        lab = labels == i
+        # lab = labels == i
+        lab = labels == labels_v[i]
         lab_dists = lab * dists
         cent_dists[i] = lab_dists.max()
         cent_idxs[i] = np.argmax(lab_dists)
@@ -306,6 +310,7 @@ def iterate(G, im, mask, max_d=10, max_iter=10, using_superpixels=False, suppxls
         else:
             linx = np.ravel_multi_index(coor, im.shape)
 
+        print 'linx'
         # py3DSeedEditor.py3DSeedEditor(im, contour=suppxls == linx).show()
         # draw_overlays(suppxls, suppxls == linx)
 
@@ -321,6 +326,7 @@ def iterate(G, im, mask, max_d=10, max_iter=10, using_superpixels=False, suppxls
 
             # najdu shopabas
             dist_layer, energy_s = get_shopabas(G, seed, max_d, suppxls, im, using_superpixels, init_dist_val)
+            # py3DSeedEditor.py3DSeedEditor(dist_layer).show()
 
             # plt.figure()
             # plt.subplot(121), plt.imshow(dist_layer, 'gray')
@@ -330,8 +336,9 @@ def iterate(G, im, mask, max_d=10, max_iter=10, using_superpixels=False, suppxls
             #     masked_layer += np.argmin(np.dstack((dist_im, dist_layer)), axis=2) == 1
             # else:
             #     masked_layer += np.where(dist_layer <= dist_im, 1, 0)
-            masked_layer = np.logical_or(masked_layer, dist_layer < dist_im)
-
+            # masked_layer = np.logical_or(masked_layer, dist_layer < dist_im)
+            masked_layer = np.logical_or(masked_layer, mask * (dist_layer < dist_im))
+            # py3DSeedEditor.py3DSeedEditor(masked_layer).show()
             # plt.subplot(122), plt.imshow(masked_layer, 'gray')
             # plt.show()
 
@@ -380,6 +387,10 @@ def iterate(G, im, mask, max_d=10, max_iter=10, using_superpixels=False, suppxls
         srcs_en += energy_s
         srcs_en_im = srcs_en.reshape(im.shape)
 
+        print 'labeled area'
+        py3DSeedEditor.py3DSeedEditor(masked_layer).show()
+        py3DSeedEditor.py3DSeedEditor(label_im).show()
+
         # kontrola zda jeste existuje neolabelovana oblast
         if (label_im == 0).sum() == 0:
             break
@@ -393,6 +404,8 @@ def iterate(G, im, mask, max_d=10, max_iter=10, using_superpixels=False, suppxls
 
     # plt.figure()
     # plt.imshow(im, 'gray')
+
+    py3DSeedEditor.py3DSeedEditor(label_im).show()
 
     plt.figure()
     plt.imshow(label_im, 'jet', interpolation='nearest')
@@ -488,13 +501,19 @@ def merge_with_components(comp, mergers, label_im):
     # label the component with the same label
     label_im[np.nonzero(comp)] = label
     # relabel label_im image to remove unassigned label indices
-    label_im = skimor.label(label_im, background=0) + 1
+    # label_im = skimor.label(label_im, background=0) + 1
+    label_im = tools.relabel(label_im) + 1
     return label_im
 
 
 def get_neighbors(comp, suppxls, label_im):
     # get all neighboring components of input component 'comp'
-    comp_b = skimor.binary_dilation(comp, skimor.square(3)) - comp
+    # comp_b = skimor.binary_dilation(comp, skimor.square(3)) - comp
+    if suppxls.ndim == 2:
+        strel = np.ones((3, 3))
+    else:
+        strel = np.ones((3, 3, 3))
+    comp_b = scindimor.binary_dilation(comp, strel) - comp
 
     labeled_suppxls_in_b = suppxls[np.nonzero((label_im > 0) * comp_b)]
 
@@ -596,13 +615,17 @@ def run(data, mask, slice, max_d=50, using_superpixels=False, method_type='autom
 
     if data.dtype != np.uint8:
         data = data.astype(np.uint8)
-    if mask == None:
+    if mask is None:
         mask = np.ones(data.shape, dtype=np.bool)
 
-    img = data[slice, :, :]
-    mask = mask[slice, :, :].astype(np.bool)
+    img = data
+    # img = data[slice, :, :]
+    # mask = mask[slice, :, :].astype(np.bool)
     mask_orig = mask.copy()
-    # img = data
+
+    # plt.figure()
+    # plt.imshow(img[slice,:,:], 'gray')
+    # plt.show()
 
     img, mask = tools.crop_to_bbox(img, mask)
 
@@ -622,9 +645,11 @@ def run(data, mask, slice, max_d=50, using_superpixels=False, method_type='autom
     #TODO: graf vytvaret pouze ze superpixelu v masce!!!
     print 'Deriving superpixels...'
     # suppxls, suppxls_sw = tools.slics_3D(en, n_segments=100, get_slicewise=True)
-    # suppxls = tools.slics_3D(en, n_segments=100, pseudo_3D=False)
-    suppxls = skiseg.slic(cv2.cvtColor(liver_s, cv2.COLOR_GRAY2RGB))
-    # py3DSeedEditor.py3DSeedEditor(suppxls).show()
+    if en.ndim == 2:
+        suppxls = skiseg.slic(cv2.cvtColor(liver_s, cv2.COLOR_GRAY2RGB))
+    else:
+        suppxls = tools.slics_3D(en, n_segments=100, pseudo_3D=False)
+    py3DSeedEditor.py3DSeedEditor(suppxls).show()
 
     # plt.figure()
     # plt.imshow(skiseg.mark_boundaries(liver_s, suppxls))
@@ -638,10 +663,13 @@ def run(data, mask, slice, max_d=50, using_superpixels=False, method_type='autom
     suppxls = mask * (suppxls + 1)  # +1 because suppxls starts with 0
     suppxls -= 1  # -1 to shift background to -1 and suppxls first index back to 0
     # relabel them to overcome problems with suprepixels cutted with ROI
-    suppxls = skimor.label(suppxls, background=-1)
+    # suppxls = skimor.label(suppxls, background=-1)
+    suppxls = tools.relabel(suppxls)
+    # py3DSeedEditor.py3DSeedEditor(suppxls).show()
 
     print 'Calculating superpixel intensities...'
     suppxl_ints_im = tools.suppxl_ints2im(suppxls, im=en)
+    # py3DSeedEditor.py3DSeedEditor(suppxl_ints_im).show()
 
     # py3DSeedEditor.py3DSeedEditor(suppxls).show()
     # suppxls = skiseg.slic(cv2.cvtColor(en[12,:,:], cv2.COLOR_GRAY2RGB))
@@ -663,10 +691,10 @@ def run(data, mask, slice, max_d=50, using_superpixels=False, method_type='autom
 
     label_im, seed_coords_l = iterate(G, liver_s, mask, max_d=max_d, max_iter=max_iter, using_superpixels=using_superpixels, suppxls=suppxls, is_interactive=method_type=='interactive')
 
-    data_orig, mask_orig = tools.crop_to_bbox(data[slice, :, :], mask_orig)
-    plt.figure()
-    plt.imshow(skiseg.mark_boundaries(data_orig, label_im))
-    plt.show()
+    # data_orig, mask_orig = tools.crop_to_bbox(data[slice, :, :], mask_orig)
+    # plt.figure()
+    # plt.imshow(skiseg.mark_boundaries(data_orig, label_im))
+    # plt.show()
 
 
 #-----------------------------------------------------------------------------------------------------
@@ -676,7 +704,7 @@ if __name__ == "__main__":
     # dcmdir = '/home/tomas/Dropbox/Work/Data/medical/org-53009707-export_liver.pklz'
     # dcmdir = '/home/tomas/Dropbox/Work/Data/medical/org-52496602-export_liver.pklz'
     dcmdir = '/home/tomas/Dropbox/Work/Data/medical/org-38289898-export1.pklz'
-    data = misc.obj_from_file(dcmdir, filetype = 'pickle')
+    data = misc.obj_from_file(dcmdir, filetype='pickle')
 
     data3d = data['data3d']
     data3d = tools.windowing(data3d, level=50+(-1000 - data3d.min()), width=300, sliceId=0)
@@ -691,10 +719,27 @@ if __name__ == "__main__":
     data3d = tools.resize3D(data3d, scale, sliceId=0).astype(np.uint8)
     segmentation = tools.resize3D(segmentation, scale, sliceId=0).astype(np.uint8)
 
+    voxel_size = data['voxelsize_mm']
+    spacing = voxel_size / 1
+
+    print 'spacing for zooming: ', spacing
+    print 'shape before zooming: ', data3d.shape
+
+    # py3DSeedEditor.py3DSeedEditor(data3d).show()
+
+    # rescaling
+    data3d = scindiint.zoom(data3d.astype(np.float), spacing)
+    segmentation = scindiint.zoom(segmentation, spacing)
+
+    print 'shape after zooming: ', data3d.shape
+
+    # py3DSeedEditor.py3DSeedEditor(data3d).show()
+
     # slice = 46
     slice = 12
     using_suppxls = True
     max_d = 5
+    # max_d = 10
     # method_type = 'interactive'
     method_type = 'automatic'
     run(data3d, mask=segmentation, slice=slice, max_d=max_d, using_superpixels=using_suppxls, method_type=method_type)

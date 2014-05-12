@@ -555,3 +555,17 @@ def remove_empty_suppxls(suppxls):
             new_supps[np.nonzero(sup)] = idx
             idx += 1
     return new_supps
+
+
+def relabel(data):
+    """Relabels data.
+    """
+    labels = np.unique(data)
+    relabeled = np.zeros_like(data)
+    l = labels.min()
+    for i in labels:
+        obj = data == i
+        relabeled = np.where(obj, l, relabeled)
+        l += 1
+
+    return relabeled
