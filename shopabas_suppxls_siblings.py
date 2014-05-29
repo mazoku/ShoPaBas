@@ -224,7 +224,10 @@ def get_features(labels, nlabels):
             strel = np.ones((3,3,3), dtype=np.bool)
         obj = skimor.binary_closing(obj, strel)
         # compactness = tools.get_zunics_compatness(obj)
-        ecc = skimea.regionprops(obj)[0]['eccentricity']
+        if labels.ndim == 2:
+            ecc = skimea.regionprops(obj)[0]['eccentricity']
+        else:
+            ecc = tools.get_zunics_compatness(obj)
         features[lab, 0] = area
         # features[lab - 1, 1] = compactness
         features[lab, 1] = ecc
@@ -254,6 +257,23 @@ def filter_false_objects(label_im, max_ecc=0.5, min_area=10):
     for i in np.argwhere(features_ok == 0):
         objs_ok = np.where(label_im == i, -1, objs_ok)
     return objs_ok
+
+
+# def filter_false_objects_3D(label_im, max_ecc=0.5, min_area=10):
+#     n_labels = label_im.max() + 1
+#
+#     # computing object features
+#     features = get_features(label_im, n_labels)
+#
+#     # filtering objects with respect to their features
+#     area_ok = features[:, 0] >= min_area
+#     comp_ok = features[:, 1] <= max_ecc
+#     features_ok = np.logical_and(area_ok, comp_ok)
+#
+#     objs_ok = label_im.copy()
+#     for i in np.argwhere(features_ok == 0):
+#         objs_ok = np.where(label_im == i, -1, objs_ok)
+#     return objs_ok
 
 
 def iterate(G, im, mask, max_d=10, max_iter=10, using_superpixels=False, suppxls=None, is_interactive=False):
@@ -310,7 +330,7 @@ def iterate(G, im, mask, max_d=10, max_iter=10, using_superpixels=False, suppxls
         else:
             linx = np.ravel_multi_index(coor, im.shape)
 
-        print 'linx'
+        # print 'linx'
         # py3DSeedEditor.py3DSeedEditor(im, contour=suppxls == linx).show()
         # draw_overlays(suppxls, suppxls == linx)
 
@@ -387,9 +407,9 @@ def iterate(G, im, mask, max_d=10, max_iter=10, using_superpixels=False, suppxls
         srcs_en += energy_s
         srcs_en_im = srcs_en.reshape(im.shape)
 
-        print 'labeled area'
-        py3DSeedEditor.py3DSeedEditor(masked_layer).show()
-        py3DSeedEditor.py3DSeedEditor(label_im).show()
+        # print 'labeled area'
+        # py3DSeedEditor.py3DSeedEditor(masked_layer).show()
+        # py3DSeedEditor.py3DSeedEditor(label_im).show()
 
         # kontrola zda jeste existuje neolabelovana oblast
         if (label_im == 0).sum() == 0:
@@ -407,27 +427,24 @@ def iterate(G, im, mask, max_d=10, max_iter=10, using_superpixels=False, suppxls
 
     py3DSeedEditor.py3DSeedEditor(label_im).show()
 
-    plt.figure()
-    plt.imshow(label_im, 'jet', interpolation='nearest')
+    # plt.figure()
+    # plt.imshow(label_im, 'jet', interpolation='nearest')
 
     # plt.figure()
     # plt.imshow(skiseg.mark_boundaries(im, label_im))
     # plt.show()
 
-    plt.figure()
-    plt.imshow(label_im, interpolation='nearest'), plt.hold(True), plt.axis('image')
-    for coor in seed_coords_l:
-        plt.plot(coor[1], coor[0], 'ro')
-    plt.title('label_im')
+    # plt.figure()
+    # plt.imshow(label_im, interpolation='nearest'), plt.hold(True), plt.axis('image')
+    # for coor in seed_coords_l:
+    #     plt.plot(coor[1], coor[0], 'ro')
+    # plt.title('label_im')
 
     # plt.show()
 
     # plt.figure()
     # plt.imshow(label_im, interpolation='nearest')
     # maxi = label_im.max()
-
-    # filtration of false objects
-    label_im = filter_false_objects(label_im)
 
     # plt.figure()
     # plt.imshow(label_im, interpolation='nearest', vmax=maxi)
@@ -618,72 +635,60 @@ def run(data, mask, slice, max_d=50, using_superpixels=False, method_type='autom
     if mask is None:
         mask = np.ones(data.shape, dtype=np.bool)
 
-    img = data
-    # img = data[slice, :, :]
-    # mask = mask[slice, :, :].astype(np.bool)
-    mask_orig = mask.copy()
-
-    # plt.figure()
-    # plt.imshow(img[slice,:,:], 'gray')
-    # plt.show()
+    # img = data
+    img = data[slice, :, :]
+    mask = mask[slice, :, :].astype(np.bool)
+    # mask_orig = mask.copy()
 
     img, mask = tools.crop_to_bbox(img, mask)
 
     # data smoothing
-    ims = tools.smoothing_tv(img, 0.05)
+    ims = tools.smoothing_tv(img, 0.05, sliceId=0)
+    # ims = tools.smoothing_bilateral(img, sliceId=0)
 
     liver_s = ims * mask
+    # py3DSeedEditor.py3DSeedEditor(liver_s).show()
 
     en = liver_s
     wtype = 3
 
     #-----------------------------------
-    # suppxls = skiseg.slic(cv2.cvtColor(en[12,:,:], cv2.COLOR_GRAY2RGB))
-    # tmp = np.zeros((en.shape[1], en.shape[2], en.shape[0]))
-    # for i in range(en.shape[0]):
-    #     tmp[:,:,i] = en[i,:,:]
-    #TODO: graf vytvaret pouze ze superpixelu v masce!!!
     print 'Deriving superpixels...'
     # suppxls, suppxls_sw = tools.slics_3D(en, n_segments=100, get_slicewise=True)
     if en.ndim == 2:
-        suppxls = skiseg.slic(cv2.cvtColor(liver_s, cv2.COLOR_GRAY2RGB))
+        suppxls = skiseg.slic(cv2.cvtColor(liver_s, cv2.COLOR_GRAY2RGB), n_segments=100)
     else:
-        suppxls = tools.slics_3D(en, n_segments=100, pseudo_3D=False)
-    py3DSeedEditor.py3DSeedEditor(suppxls).show()
+        # suppxls = tools.slics_3D(en, n_segments=100, pseudo_3D=True)
+        suppxls = tools.slics_3D(en, n_segments=100, compactness=10, pseudo_3D=False)
+    # py3DSeedEditor.py3DSeedEditor(suppxls, range_per_slice=True).show()
 
-    # plt.figure()
-    # plt.imshow(skiseg.mark_boundaries(liver_s, suppxls))
-    # plt.show()
-
-    print 'Removing empty superpixels...'
-    suppxls = tools.remove_empty_suppxls(suppxls)
-
+    print 'Masking and relabeling superpixels...'
     # mask superpixels
-
     suppxls = mask * (suppxls + 1)  # +1 because suppxls starts with 0
     suppxls -= 1  # -1 to shift background to -1 and suppxls first index back to 0
+
+    plt.figure()
+    plt.imshow(skiseg.mark_boundaries(img, suppxls))
+    plt.axis('off')
+    plt.show()
+
+    n_suppxls = len(np.unique(suppxls))
+    print '\t# of superpixels: ', n_suppxls
+
     # relabel them to overcome problems with suprepixels cutted with ROI
     # suppxls = skimor.label(suppxls, background=-1)
     suppxls = tools.relabel(suppxls)
     # py3DSeedEditor.py3DSeedEditor(suppxls).show()
+    # np.save('superpixels.npy', suppxls)
 
     print 'Calculating superpixel intensities...'
     suppxl_ints_im = tools.suppxl_ints2im(suppxls, im=en)
     # py3DSeedEditor.py3DSeedEditor(suppxl_ints_im).show()
 
-    # py3DSeedEditor.py3DSeedEditor(suppxls).show()
-    # suppxls = skiseg.slic(cv2.cvtColor(en[12,:,:], cv2.COLOR_GRAY2RGB))
-    # plt.figure()
-    # plt.imshow(skiseg.mark_boundaries(en[12,:,:], suppxls[12,:,:]))
-    # plt.show()
     #-----------------------------------
-
     print 'Graph under construction...'
     if using_superpixels:
         G, suppxls = gt.create_graph_from_suppxls(en, roi=mask, suppxls=suppxls, suppxl_ints=suppxl_ints_im, wtype=wtype)
-        # plt.figure()
-        # plt.imshow(suppxls, interpolation='nearest'), plt.title('Graph created from these superpixels')
-        # plt.show()
     else:
         G = create_graph(en, wtype=wtype)
         suppxls = None
@@ -691,10 +696,21 @@ def run(data, mask, slice, max_d=50, using_superpixels=False, method_type='autom
 
     label_im, seed_coords_l = iterate(G, liver_s, mask, max_d=max_d, max_iter=max_iter, using_superpixels=using_superpixels, suppxls=suppxls, is_interactive=method_type=='interactive')
 
-    # data_orig, mask_orig = tools.crop_to_bbox(data[slice, :, :], mask_orig)
-    # plt.figure()
-    # plt.imshow(skiseg.mark_boundaries(data_orig, label_im))
-    # plt.show()
+    plt.figure()
+    plt.imshow(label_im, 'jet')
+    plt.show()
+
+    #------------------------------------------------------------------------
+    # saving numpy arrays
+    # print 'Saving data...'
+    # np.save('label_im.npy', label_im)
+    # np.save('input_data.npy', liver_s)
+    # np.save('mask.npy', mask)
+
+    #------------------------------------------------------------------------
+    # filtration of false objects
+    print 'Filtering out false objects...'
+    label_im = filter_false_objects(label_im)
 
 
 #-----------------------------------------------------------------------------------------------------
@@ -710,15 +726,12 @@ if __name__ == "__main__":
     data3d = tools.windowing(data3d, level=50+(-1000 - data3d.min()), width=300, sliceId=0)
     segmentation = data['segmentation'].astype(np.uint8)
 
-    # plt.figure()
-    # plt.imshow(data3d[12,:,:], 'gray')
-    # plt.show()
-
     # downscaling
     scale = 0.5
     data3d = tools.resize3D(data3d, scale, sliceId=0).astype(np.uint8)
     segmentation = tools.resize3D(segmentation, scale, sliceId=0).astype(np.uint8)
 
+    # rescaling / zooming
     voxel_size = data['voxelsize_mm']
     spacing = voxel_size / 1
 
@@ -726,8 +739,6 @@ if __name__ == "__main__":
     print 'shape before zooming: ', data3d.shape
 
     # py3DSeedEditor.py3DSeedEditor(data3d).show()
-
-    # rescaling
     data3d = scindiint.zoom(data3d.astype(np.float), spacing)
     segmentation = scindiint.zoom(segmentation, spacing)
 
@@ -735,8 +746,11 @@ if __name__ == "__main__":
 
     # py3DSeedEditor.py3DSeedEditor(data3d).show()
 
+    np.save('input_orig_data.npy', data3d)
+
     # slice = 46
-    slice = 12
+    # slice = 12
+    slice = 33
     using_suppxls = True
     max_d = 5
     # max_d = 10

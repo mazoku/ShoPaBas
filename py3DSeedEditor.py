@@ -38,7 +38,8 @@ class py3DSeedEditor:
     def __init__(self, img, voxelsizemm=[1,1,1], initslice = 0 , colorbar = True,
             cmap = matplotlib.cm.Greys_r, seeds = None, contour = None, zaxis=0,
             mouse_button_map= {1:1, 2:2, 3:3, 4:4, 5:5, 6:6, 7:7, 8:8},
-            windowW = [], windowC = []
+            windowW = [], windowC = [],
+            range_per_slice = False
             ):
         self.fig = plt.figure()
 
@@ -55,6 +56,10 @@ class py3DSeedEditor:
 
         self.rotated_back = False
         self.zaxis = zaxis
+
+        # if True, intensity range is calculated per slice = better visualisation for
+        # higher number of labels
+        self.range_per_slice = range_per_slice
 
         #self.ax = self.fig.add_subplot(111)
         self.imgshape = list(img.shape)
@@ -155,7 +160,10 @@ class py3DSeedEditor:
 
     def draw_slice(self):
         sliceimg = self.img[:,:,self.actual_slice]
-        self.imsh = self.ax.imshow(sliceimg, self.cmap, vmin = self.imgmin, vmax = self.imgmax, interpolation='nearest')
+        if self.range_per_slice:
+            self.imsh = self.ax.imshow(sliceimg, self.cmap, vmin = sliceimg.min(), vmax = sliceimg.max(), interpolation='nearest')
+        else:
+            self.imsh = self.ax.imshow(sliceimg, self.cmap, vmin = self.imgmin, vmax = self.imgmax, interpolation='nearest')
         self.ax.imshow(self.prepare_overlay(self.seeds[:,:,self.actual_slice]), interpolation='nearest', vmin = self.imgmin, vmax = self.imgmax)
         
         if self.contour != None:

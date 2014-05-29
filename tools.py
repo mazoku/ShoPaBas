@@ -338,6 +338,7 @@ def intensity_probability(data, std=20, roi=None, dens_min=10, dens_max=255):
 
 
 def get_zunics_compatness(obj):
+    # The bigger the compactness the closer to a sphere
     m000 = obj.sum()
     m200 = get_central_moment(obj, 2, 0, 0)
     m020 = get_central_moment(obj, 0, 2, 0)
@@ -459,7 +460,7 @@ def crop_to_bbox(im, mask):
     return im, mask
 
 
-def slics_3D(im, pseudo_3D=True, n_segments=100, get_slicewise=False):
+def slics_3D(im, pseudo_3D=True, n_segments=100, compactness=10, get_slicewise=False):
     if im.ndim != 3:
         raise Exception('3D image is needed.')
 
@@ -470,7 +471,7 @@ def slics_3D(im, pseudo_3D=True, n_segments=100, get_slicewise=False):
         im_rgb[:, :, :, 1] = im
         im_rgb[:, :, :, 2] = im
 
-        suppxls = skiseg.slic(im_rgb, n_segments=n_segments, spacing=(2, 1, 1))
+        suppxls = skiseg.slic(im_rgb, n_segments=n_segments, compactness=compactness, spacing=(1, 1, 1), sigma=0)
 
     else:
         suppxls = np.zeros(im.shape)
