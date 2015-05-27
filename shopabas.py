@@ -8,6 +8,7 @@ import cv2
 import skimage.morphology as skimor
 import skimage.segmentation as skiseg
 import skimage.measure as skimea
+import skimage.io as skiio
 import misc
 import networkx as nx
 import scipy.ndimage.morphology as scindimor
@@ -16,6 +17,31 @@ import scipy.ndimage.interpolation as scindiint
 import pylab
 import py3DSeedEditor
 
+import ConfigParser
+
+
+def load_parameters(self, config_path):
+        config = ConfigParser.ConfigParser()
+        config.read(config_path)
+
+        params = dict()
+
+        # an automatic way
+        for section in config.sections():
+            for option in config.options(section):
+                try:
+                    params[option] = config.getint(section, option)
+                except ValueError:
+                    try:
+                        params[option] = config.getfloat(section, option)
+                    except ValueError:
+                        if option == 'voxel_size':
+                            str = config.get(section, option)
+                            params[option] = np.array(map(int, str.split(', ')))
+                        else:
+                            params[option] = config.get(section, option)
+
+        return params
 
 def make_neighborhood_matrix(im, nghood=4):
     im = np.array(im, ndmin=3)
@@ -276,6 +302,8 @@ def filter_false_objects(label_im, max_ecc=0.5, min_area=10):
 #     return objs_ok
 
 
+def interactive(G, im, mask, max_d=10, using_superpixels=False, suppxls=None):
+
 def iterate(G, im, mask, max_d=10, max_iter=10, using_superpixels=False, suppxls=None, is_interactive=False):
     if im.ndim == 3:
         n_slices, n_rows, n_cols = im.shape
@@ -453,6 +481,120 @@ def iterate(G, im, mask, max_d=10, max_iter=10, using_superpixels=False, suppxls
     return label_im, seed_coords_l
 
 
+def automatic_lowest_energy(, iterations=10):
+        # iteration = 0
+        srcsen = np.zeros( self.G.number_of_nodes() )
+        used = np.ones( self.G.number_of_nodes(), dtype=np.bool )
+        used[ np.ravel_multi_index( np.nonzero(self.maskroi), self.en.shape ) ] = False
+
+        saveimgs = np.zeros( (self.en.shape[0],self.en.shape[1], iterations) )
+        saveimgs2 = np.zeros( (self.en.shape[0],self.en.shape[1], iterations) )
+
+        nrows, ncols = self.en.shape
+        #bounds = np.ravel_multi_index( ((0,(nrows-1)/2,(nrows-1),(nrows-1)/2),((ncols-1)/2,(ncols-1),(ncols-1)/2,0)), self.en.shape)
+
+        # iteration -= 5
+        iteration = 0
+        while iteration < iterations:
+            print 'iteration #%i'%(iteration + 1)
+
+            # if iteration < 4:
+            #     linx = bounds[iteration]
+            #     used[linx] = True
+            # else:
+            inds = np.arange(0, nrows*ncols, dtype=np.uint32)
+            energyNotUsed = srcsen[np.logical_not(used)]
+            indsNotUsed = inds[np.logical_not(used)]
+
+            # minimalEnergyIndex = np.argmin(energyNotUsed)
+            # linx = indsNotUsed[minimalEnergyIndex]
+            # linx = self.get_new_seed(energyNotUsed, indsNotUsed)
+            linx = self.get_new_seed_gradient_based(energyNotUsed, indsNotUsed, self.grad)
+            used[linx] = True
+
+            maxd = 150
+            dists, path = nx.single_source_dijkstra( self.G, linx, cutoff=maxd )
+
+            #bodum vzdalenejsim nez maxd se priradi hodnota cutedValue
+            # cutedValue = maxd + 20
+            # energy = cutedValue * np.ones( nrows*ncols )
+            energyS = np.zeros( nrows*ncols )
+            #z rostouci vzdalenosti udelam klesajici (penalizacni) energii
+            distsItemsArray = np.array(dists.items())
+            energyS[ distsItemsArray[:,0].astype(np.uint32) ] = maxd - distsItemsArray[:,1]
+
+            distLayer = (maxd + 20) * np.ones( nrows*ncols )
+            distLayer[ distsItemsArray[:,0].astype(np.uint32) ] = distsItemsArray[:,1]#energyS.reshape( self.en.shape )
+            self.distLayer = distLayer.reshape(self.en.shape)
+
+            maskedLayer = np.argmin( np.dstack( (self.distIm, self.distLayer) ), axis=2 ) == 1
+
+            # label = self.getLabel( dists, linx, method='intens' )
+            label = iteration + 1
+            # if iteration > 0:
+            #     srcsenO = srcsen.copy()
+            #     srcsenN = srcsen + energyS
+            #     srcsenDiff = srcsenN - srcsenO
+            #     plt.figure(), plt.imshow(energyS.reshape(self.en.shape)), plt.title('energyS'), plt.colorbar()
+            #     plt.figure(), plt.imshow(srcsenO.reshape(self.en.shape)), plt.title('srcsen pred'), plt.colorbar()
+            #     plt.figure(), plt.imshow(srcsenN.reshape(self.en.shape)), plt.title('srcsen po'), plt.colorbar()
+            #     plt.figure(), plt.imshow(srcsenDiff.reshape(self.en.shape)), plt.title('srcsen diff'), plt.colorbar()
+            #     plt.show()
+            srcsen += energyS
+
+            self.labelIm = np.where( maskedLayer, label, self.labelIm )
+            self.distIm = np.where( maskedLayer, self.distLayer, self.distIm )
+            self.srclblD[linx] = label
+            self.sourcesL.append( linx )
+            # self.redraw( drawSources=True )
+
+            saveimgs[:,:,iteration] = self.labelIm
+            saveimgs2[:,:,iteration] = srcsen.reshape(self.en.shape)
+
+            iteration += 1
+
+        plt.figure()
+        plt.imshow(self.imroi.astype(np.uint8)),  plt.gray()
+        plt.axis('image'), plt.axis('off'), plt.title('input')
+
+        plt.figure()
+        plt.imshow(saveimgs[:,:,-1], vmin=0, vmax=saveimgs.max()), plt.gray()
+        plt.axis('image'), plt.axis('off'), plt.title('final')
+
+        plt.figure()
+        plt.imshow(saveimgs2[:,:,-1], vmin=0, vmax=saveimgs2.max()), plt.gray()
+        plt.axis('image'), plt.axis('off'), plt.title('srcsen')
+
+        plt.figure()
+        plt.imshow( segmentation.mark_boundaries(self.imroi.astype(np.uint8), self.labelIm))
+        plt.axis('image'), plt.axis('off'), plt.title('boundaries')
+
+        plt.figure()
+        plt.imshow( self.en ), plt.gray()
+        plt.hold(True)
+        coords = np.unravel_index( self.sourcesL, self.en.shape )
+        plt.plot( coords[1], coords[0], 'wo', markersize=6, markeredgewidth=2 )
+        plt.axis('image'), plt.axis('off'), plt.title('seeds in im')
+
+        plt.figure()
+        plt.imshow(self.grad_vec_norm.reshape(self.grad.shape)), plt.gray()
+        plt.hold(True)
+        coords = np.unravel_index( self.sourcesL, self.en.shape )
+        plt.plot( coords[1], coords[0], 'wo', markersize=6, markeredgewidth=2 )
+        plt.axis('image'), plt.axis('off'), plt.title('seeds in gradient')
+
+        grad_en = sobel(saveimgs2[:,:,-1])
+        grad_en_norm = cv2.normalize(grad_en, dst=None, alpha=0, beta=100, norm_type=cv2.NORM_MINMAX)
+        plt.figure()
+        plt.imshow( grad_en_norm), plt.gray()
+        plt.axis('image'), plt.axis('off'), plt.title('energy gradient')
+
+        # f1.savefig( 'dijkstra_split_source_en2/im_final_no_sources.png', bbox_inches='tight' )
+        # f2.savefig( 'dijkstra_split_source_en2/im_srcsen_final_no_sources.png', bbox_inches='tight' )
+        # f3.savefig( 'dijkstra_split_source_en2/im_boundaries.png', bbox_inches='tight' )
+        plt.show()
+
+
 def get_siblings(dists, suppxls, im, seed_idx, max_diff=2):
     suppxl_ints = gt.get_suppxl_ints(im, suppxls)
     masked = (dists > 0) * suppxls
@@ -628,38 +770,43 @@ def draw_overlays(im, labels, colors=(('b','r','g','c','m','y')), cmap=None, sho
         plt.show()
 
 
-def run(data, mask, slice, max_d=50, using_superpixels=False, method_type='automatic', max_iter=10):
+# def run(data, mask=None, slice=None, max_d=50, using_superpixels=False, method_type='automatic', max_iter=10):
+def run(data, params, mask=None, slice=None):
 
-    if data.dtype != np.uint8:
-        data = data.astype(np.uint8)
+    # --  preparing parameters ----------------------
+    if isinstance(params, str):
+        params = load_parameters(params)
+
+    if issubclass(data.dtype, np.int):
+        max_d = params['max_diff_factor']  # factor recalculated to integer image type
+    elif issubclass(data.dtype.type, np.float):
+        max_d = params['max_diff_factor'] * 1./255  # factor recalculated to float image type
+
     if mask is None:
         mask = np.ones(data.shape, dtype=np.bool)
 
     # img = data
-    img = data[slice, :, :]
-    mask = mask[slice, :, :].astype(np.bool)
-    # mask_orig = mask.copy()
+    if (slice is not None) and (data.ndim == 3):
+        img = data[slice, :, :]
+        mask = mask[slice, :, :].astype(np.bool)
+    else:
+        img = data
 
     img, mask = tools.crop_to_bbox(img, mask)
 
-    # data smoothing
+    #--  data smoothing  -----------------------------
     ims = tools.smoothing_tv(img, 0.05, sliceId=0)
     # ims = tools.smoothing_bilateral(img, sliceId=0)
 
-    liver_s = ims * mask
+    data_s = ims * mask
     # py3DSeedEditor.py3DSeedEditor(liver_s).show()
-
-    en = liver_s
-    wtype = 3
 
     #-----------------------------------
     print 'Deriving superpixels...'
-    # suppxls, suppxls_sw = tools.slics_3D(en, n_segments=100, get_slicewise=True)
-    if en.ndim == 2:
-        suppxls = skiseg.slic(cv2.cvtColor(liver_s, cv2.COLOR_GRAY2RGB), n_segments=100)
+    if data_s.ndim == 2:
+        suppxls = skiseg.slic(cv2.cvtColor(data_s, cv2.COLOR_GRAY2RGB), n_segments=100)
     else:
-        # suppxls = tools.slics_3D(en, n_segments=100, pseudo_3D=True)
-        suppxls = tools.slics_3D(en, n_segments=100, compactness=10, pseudo_3D=False)
+        suppxls = tools.slics_3D(data_s, n_segments=100, compactness=10, pseudo_3D=False)
     # py3DSeedEditor.py3DSeedEditor(suppxls, range_per_slice=True).show()
 
     print 'Masking and relabeling superpixels...'
@@ -675,26 +822,25 @@ def run(data, mask, slice, max_d=50, using_superpixels=False, method_type='autom
     n_suppxls = len(np.unique(suppxls))
     print '\t# of superpixels: ', n_suppxls
 
-    # relabel them to overcome problems with suprepixels cutted with ROI
-    # suppxls = skimor.label(suppxls, background=-1)
+    # relabel them to overcome problems with superpixels cutted with ROI
     suppxls = tools.relabel(suppxls)
     # py3DSeedEditor.py3DSeedEditor(suppxls).show()
-    # np.save('superpixels.npy', suppxls)
 
     print 'Calculating superpixel intensities...'
-    suppxl_ints_im = tools.suppxl_ints2im(suppxls, im=en)
+    suppxl_ints_im = tools.suppxl_ints2im(suppxls, im=data_s)
     # py3DSeedEditor.py3DSeedEditor(suppxl_ints_im).show()
 
     #-----------------------------------
     print 'Graph under construction...'
-    if using_superpixels:
-        G, suppxls = gt.create_graph_from_suppxls(en, roi=mask, suppxls=suppxls, suppxl_ints=suppxl_ints_im, wtype=wtype)
+    if params['using_superpixels']:
+        G, suppxls = gt.create_graph_from_suppxls(data_s, roi=mask, suppxls=suppxls, suppxl_ints=suppxl_ints_im, wtype=params['weight_type'])
     else:
-        G = create_graph(en, wtype=wtype)
+        G = create_graph(data_s, wtype=params['weight_type'])
         suppxls = None
     print '...done.'
 
-    label_im, seed_coords_l = iterate(G, liver_s, mask, max_d=max_d, max_iter=max_iter, using_superpixels=using_superpixels, suppxls=suppxls, is_interactive=method_type=='interactive')
+    label_im, seed_coords_l = iterate(G, data_s, mask, max_d=max_d, max_iter=params['max_iter'], using_superpixels=params['using_superpixels'],
+                                      suppxls=suppxls, is_interactive=params['method_type']=='interactive')
 
     plt.figure()
     plt.imshow(label_im, 'jet')
@@ -709,8 +855,8 @@ def run(data, mask, slice, max_d=50, using_superpixels=False, method_type='autom
 
     #------------------------------------------------------------------------
     # filtration of false objects
-    print 'Filtering out false objects...'
-    label_im = filter_false_objects(label_im)
+    # print 'Filtering out false objects...'
+    # label_im = filter_false_objects(label_im)
 
 
 #-----------------------------------------------------------------------------------------------------
@@ -719,41 +865,50 @@ if __name__ == "__main__":
     # dcmdir = '/home/tomas/Dropbox/Work/Data/medical/org-53596059-export_liver.pklz'
     # dcmdir = '/home/tomas/Dropbox/Work/Data/medical/org-53009707-export_liver.pklz'
     # dcmdir = '/home/tomas/Dropbox/Work/Data/medical/org-52496602-export_liver.pklz'
-    dcmdir = '/home/tomas/Dropbox/Work/Data/medical/org-38289898-export1.pklz'
-    data = misc.obj_from_file(dcmdir, filetype='pickle')
-
-    data3d = data['data3d']
-    data3d = tools.windowing(data3d, level=50+(-1000 - data3d.min()), width=300, sliceId=0)
-    segmentation = data['segmentation'].astype(np.uint8)
-
-    # downscaling
-    scale = 0.5
-    data3d = tools.resize3D(data3d, scale, sliceId=0).astype(np.uint8)
-    segmentation = tools.resize3D(segmentation, scale, sliceId=0).astype(np.uint8)
-
-    # rescaling / zooming
-    voxel_size = data['voxelsize_mm']
-    spacing = voxel_size / 1
-
-    print 'spacing for zooming: ', spacing
-    print 'shape before zooming: ', data3d.shape
-
-    # py3DSeedEditor.py3DSeedEditor(data3d).show()
-    data3d = scindiint.zoom(data3d.astype(np.float), spacing)
-    segmentation = scindiint.zoom(segmentation, spacing)
-
-    print 'shape after zooming: ', data3d.shape
-
-    # py3DSeedEditor.py3DSeedEditor(data3d).show()
-
-    np.save('input_orig_data.npy', data3d)
+    # dcmdir = '/home/tomas/Dropbox/Work/Data/medical/org-38289898-export1.pklz'
+    # data = misc.obj_from_file(dcmdir, filetype='pickle')
+    #
+    # data3d = data['data3d']
+    # data3d = tools.windowing(data3d, level=50+(-1000 - data3d.min()), width=300, sliceId=0)
+    # segmentation = data['segmentation'].astype(np.uint8)
+    #
+    # # downscaling
+    # scale = 0.5
+    # data3d = tools.resize3D(data3d, scale, sliceId=0).astype(np.uint8)
+    # segmentation = tools.resize3D(segmentation, scale, sliceId=0).astype(np.uint8)
+    #
+    # # rescaling / zooming
+    # voxel_size = data['voxelsize_mm']
+    # spacing = voxel_size / 1
+    #
+    # print 'spacing for zooming: ', spacing
+    # print 'shape before zooming: ', data3d.shape
+    #
+    # # py3DSeedEditor.py3DSeedEditor(data3d).show()
+    # data3d = scindiint.zoom(data3d.astype(np.float), spacing)
+    # segmentation = scindiint.zoom(segmentation, spacing)
+    #
+    # print 'shape after zooming: ', data3d.shape
+    #
+    # # py3DSeedEditor.py3DSeedEditor(data3d).show()
+    #
+    # np.save('input_orig_data.npy', data3d)
 
     # slice = 46
     # slice = 12
-    slice = 33
+    # slice = 33
+
+    scale = 0.2
+    set = 'man_with_hat'
+    fname = '/home/tomas/Dropbox/images/Berkeley_Benchmark/set/%s/original.jpg' % set
+
+    im_orig = skiio.imread(fname, as_grey=True)
+    im = cv2.resize(im_orig, None, fx=scale, fy=scale, interpolation=cv2.INTER_NEAREST)
+
+    data3d = im_orig
     using_suppxls = True
     max_d = 5
     # max_d = 10
     # method_type = 'interactive'
     method_type = 'automatic'
-    run(data3d, mask=segmentation, slice=slice, max_d=max_d, using_superpixels=using_suppxls, method_type=method_type)
+    run(data3d, max_d=max_d, using_superpixels=using_suppxls, method_type=method_type)
