@@ -16,41 +16,24 @@ from matplotlib.backends.backend_tkagg import FigureCanvasTkAgg
 class PathBasins:
 
     def __init__( self):
-        self.im3d = None
-        self.mask3d = None
-        # data = scio.loadmat('z:/work/tumors/dataHypoMeta.mat')
-        # self.im3d = data['data3d']
-        # self.mask3d = data['mask']
-
-        # self.im3d = cv2.imread('z:/images/Koala.jpg', 0)
-        # self.im3d = cv2.imread('c:\Dropbox\images\medicine\hypodenseTumor.png', 0)
-        # self.im3d = cv2.imread('z:/images/lena.png', 0)
-        # self.im3d = cv2.imread('z:/images/puma.png', 0)
-        # self.im3d = cv2.imread('z:/images/the-creation-of-adam.jpg', 0)
-
-        # self.im3d = cv2.imread(r'z:\images\Berkeley_Benchmark\elephants_296059.jpg', 0)
+        self.data = None
+        self.mask = None
         set = 'man_with_hat'
         fname = '/home/tomas/Dropbox/images/Berkeley_Benchmark/set/%s/original.jpg' % set
-        self.im3d = cv2.imread(fname, 0)
-        # self.im3d = cv2.imread(r'z:\images\Berkeley_Benchmark\hawk_on_bench_42049.jpg', 0)
-        # self.im3d = cv2.imread(r'z:\images\Berkeley_Benchmark\steeple_118035.jpg', 0)
-        # self.im3d = cv2.imread(r'z:\images\Berkeley_Benchmark\bear_100080.jpg', 0)
-        # self.im3d = cv2.imread(r'z:\images\Berkeley_Benchmark\deer_41004.jpg', 0)
-        # self.im3d = cv2.imread(r'z:\images\Berkeley_Benchmark\polar_bears_183055.jpg', 0)
-        # self.im3d = cv2.imread('z:/images/Koala03.png', 0)
+        self.data = cv2.imread(fname, 0)
 
-        self.im3d = cv2.resize( self.im3d, dsize=(0,0), fx=0.6, fy=0.6 )#fx=0.2, fy=0.2 )
-        self.mask3d = np.ones(self.im3d.shape, dtype=np.integer)
+        self.data = cv2.resize( self.data, dsize=(0,0), fx=0.6, fy=0.6 )#fx=0.2, fy=0.2 )
+        self.mask3d = np.ones(self.data.shape, dtype=np.integer)
 
         self.en = None
         self.G = None
-        self.maskroi = np.ones(self.im3d.shape, dtype=np.bool)
-        self.imroi = self.im3d
+        self.maskroi = np.ones(self.data.shape, dtype=np.bool)
+        self.imroi = self.data
 
         # self.im3d = np.dstack((self.im3d,self.im3d))
         # self.mask3d = np.ones( self.im3d.shape, dtype=np.bool )
-        x = np.arange( 0, self.im3d.shape[1] )
-        y = np.arange( 0, self.im3d.shape[0] )
+        x = np.arange( 0, self.data.shape[1] )
+        y = np.arange( 0, self.data.shape[0] )
         self.xgrid, self.ygrid = np.meshgrid( x, y )
 
         self.distT = 30
@@ -63,8 +46,8 @@ class PathBasins:
         self.fig = plt.figure()
         # self.fig1 = plt.figure()
         # self.fig2 = plt.figure()
-        self.nRows = self.im3d.shape[0]
-        self.nCols = self.im3d.shape[1]
+        self.nRows = self.data.shape[0]
+        self.nCols = self.data.shape[1]
         self.nPixels = self.nRows * self.nCols
         self.energyS = np.zeros( self.nPixels )
 
@@ -93,7 +76,7 @@ class PathBasins:
 
         # self.en = cv2.bilateralFilter( self.imroi.astype(np.uint8), d=10, sigmaColor=20, sigmaSpace=10 )
         # self.en = cv2.bilateralFilter( self.imroi.astype(np.uint8), d=5, sigmaColor=15, sigmaSpace=5 )
-        self.en = cv2.bilateralFilter( self.im3d, d=5, sigmaColor=15, sigmaSpace=5 )
+        self.en = cv2.bilateralFilter( self.data, d=5, sigmaColor=15, sigmaSpace=5 )
         self.labelIm = np.zeros( self.en.shape )
         self.distIm = 255 * np.ones( self.en.shape, dtype=np.float )
 
@@ -450,74 +433,6 @@ class PathBasins:
             curr_maxd = self.distIm.max()
             print '\tcurr_maxd = %f (maxd = %i)'%(curr_maxd, maxd)
 
-            # plt.figure()
-            # plt.imshow(self.im3d), plt.gray()
-            # plt.axis('image'), plt.axis('off')
-            #
-            # plt.figure()
-            # plt.imshow(energyS.reshape(self.en.shape)), plt.gray()
-            # plt.axis('image'), plt.axis('off')
-            #
-            # plt.figure()
-            # plt.imshow(srcsen.reshape(self.en.shape)), plt.gray()
-            # plt.axis('image'), plt.axis('off')
-            #
-            # plt.figure()
-            # plt.imshow(srcsen.reshape(self.en.shape)), plt.gray()
-            # plt.hold(True)
-            # coords = np.unravel_index( self.sourcesL, self.en.shape )
-            # plt.plot( coords[1], coords[0], 'ro', markersize=6, markeredgewidth=2 )
-            # plt.axis('image'), plt.axis('off')
-            #
-            # plt.figure()
-            # plt.imshow(self.im3d), plt.gray()
-            # plt.hold(True)
-            # coords = np.unravel_index( self.sourcesL, self.en.shape )
-            # plt.plot( coords[1], coords[0], 'ro', markersize=6, markeredgewidth=2 )
-            # plt.axis('image'), plt.axis('off')
-
-            # plt.figure()
-            # plt.imshow( segmentation.mark_boundaries(self.imroi.astype(np.uint8), self.labelIm))
-            # plt.axis('image'), plt.axis('off')
-            # plt.hold(True)
-            # coords = np.unravel_index( self.sourcesL, self.en.shape )
-            # plt.plot( coords[1], coords[0], 'ro', markersize=6, markeredgewidth=2 )
-            # plt.axis('image'), plt.axis('off')
-            #
-            # plt.show()
-
-
-        # plt.figure()
-        # plt.imshow(self.imroi.astype(np.uint8)),  plt.gray()
-        # plt.axis('image'), plt.axis('off'), plt.title('input')
-        #
-        # plt.figure()
-        # plt.imshow(self.labelIm, vmin=0, vmax=self.labelIm.max()), plt.gray()
-        # plt.axis('image'), plt.axis('off'), plt.title('final')
-        #
-        # plt.figure()
-        # plt.imshow(srcsen.reshape(self.en.shape), vmin=0, vmax=srcsen.reshape(self.en.shape).max()), plt.gray()
-        # plt.axis('image'), plt.axis('off'), plt.title('srcsen')
-        #
-        # plt.figure()
-        # plt.imshow( segmentation.mark_boundaries(self.imroi.astype(np.uint8), self.labelIm))
-        # plt.axis('image'), plt.axis('off'), plt.title('boundaries')
-        #
-        # plt.figure()
-        # plt.imshow( self.en ), plt.gray()
-        # plt.hold(True)
-        # coords = np.unravel_index( self.sourcesL, self.en.shape )
-        # plt.plot( coords[1], coords[0], 'wo', markersize=6, markeredgewidth=2 )
-        # plt.axis('image'), plt.axis('off'), plt.title('seeds in im')
-        #
-        # plt.figure()
-        # plt.imshow(self.grad_vec_norm.reshape(self.grad.shape)), plt.gray()
-        # plt.hold(True)
-        # coords = np.unravel_index( self.sourcesL, self.en.shape )
-        # plt.plot( coords[1], coords[0], 'wo', markersize=6, markeredgewidth=2 )
-        # plt.axis('image'), plt.axis('off'), plt.title('seeds in gradient')
-        #
-        # plt.show()
 
 #----------------------------------------------------------------------------------------------------------------------
 #----------------------------------------------------------------------------------------------------------------------
@@ -593,22 +508,6 @@ class PathBasins:
 
             iteration += 1
 
-            # plt.figure()
-            # plt.subplot(121), plt.imshow(energyS.reshape( self.en.shape ))
-            # coords = np.unravel_index( linx, self.en.shape )
-            # plt.hold(True)
-            # plt.plot( coords[1], coords[0], 'rx', markersize=6, markeredgewidth=2 )
-            # plt.axis('image')
-            # plt.colorbar()
-            # plt.title('energyS, it=%i'%(iteration))
-            #
-            # plt.subplot(122), plt.imshow(srcsen.copy().reshape( self.en.shape ))
-            # coords = np.unravel_index( linx, self.en.shape )
-            # plt.hold(True)
-            # plt.plot( coords[1], coords[0], 'rx', markersize=6, markeredgewidth=2 )
-            # plt.axis('image')
-            # plt.colorbar()
-            # plt.title('srcsen, it=%i'%(iteration))
 
         # print 'Saving images...'
         # coords = np.unravel_index( self.sourcesL, self.en.shape )
@@ -709,60 +608,6 @@ class PathBasins:
 #----------------------------------------------------------------------------------------------------------------------
 #----------------------------------------------------------------------------------------------------------------------
     def redraw( self, drawSources=False ):
-
-        # plt.figure(self.fig1.number), plt.gray()
-        # plt.imshow(self.energyS.reshape(self.en.shape)), plt.title('energie seedu')
-        #
-        # if drawSources:
-        #     coords = np.unravel_index( self.sourcesL, self.en.shape )
-        #     plt.hold(True)
-        #     plt.plot( coords[1], coords[0], 'rx', markersize=6, markeredgewidth=2 )
-        #     plt.hold(False)
-        #
-        # self.fig1.canvas.draw()
-
-        # plt.figure(self.fig.number)
-        # plt.subplot(221), plt.axis('off'), plt.gray()
-        # plt.imshow(self.en)
-        # plt.subplot(222), plt.axis('off'), plt.jet()
-        # plt.imshow(self.labelIm)
-        # plt.subplot(223), plt.axis('off'), plt.gray()
-        # plt.imshow(self.energyS.reshape(self.en.shape))
-        # plt.subplot(224), plt.axis('off'), plt.gray()
-        # plt.imshow(self.srcsen.reshape(self.en.shape))
-        #
-        # if drawSources:
-        #     #for s in self.sourcesL:
-        #     coords = np.unravel_index( self.sourcesL, self.en.shape )
-        #     plt.subplot(221), plt.hold(True), plt.axis('off')
-        #     plt.plot( coords[1][0], coords[0][0], 'kx', markersize=12, markeredgewidth=5 )
-        #     if len(coords[0]) == 2:
-        #         plt.plot( coords[1][1], coords[0][1], 'ko', markersize=12, markeredgewidth=5 )
-        #     plt.hold(False), plt.axis('image')
-        #
-        #     plt.subplot(222), plt.hold(True), plt.axis('off')
-        #     plt.plot( coords[1][0], coords[0][0], 'kx', markersize=12, markeredgewidth=5 )
-        #     if len(coords[0]) == 2:
-        #         plt.plot( coords[1][1], coords[0][1], 'ko', markersize=12, markeredgewidth=5 )
-        #     plt.hold(False), plt.axis('image')
-        #
-        #     plt.subplot(223), plt.hold(True), plt.axis('off')
-        #     plt.plot( coords[1][0], coords[0][0], 'kx', markersize=12, markeredgewidth=5 )
-        #     if len(coords[0]) == 2:
-        #         plt.plot( coords[1][1], coords[0][1], 'ko', markersize=12, markeredgewidth=5 )
-        #     plt.hold(False), plt.axis('image')
-        #
-        #     plt.subplot(224), plt.hold(True), plt.axis('off')
-        #     plt.plot( coords[1][0], coords[0][0], 'kx', markersize=12, markeredgewidth=5 )
-        #     if len(coords[0]) == 2:
-        #         plt.plot( coords[1][1], coords[0][1], 'ko', markersize=12, markeredgewidth=5 )
-        #     plt.hold(False), plt.axis('image')
-        #     # plt.subplot(224), plt.hold(True), plt.axis('off')
-        #     # plt.plot( coords[1], coords[0], 'rx', markersize=6, markeredgewidth=2 )
-        #     # plt.hold(False), plt.axis('image')
-        #
-        # self.fig.canvas.draw()
-
         # plt.figure(self.fig.number)
         plt.subplot(121), plt.axis('off'), plt.gray()
         plt.imshow(self.en)
@@ -790,12 +635,7 @@ class PathBasins:
     def make_neighborhood_matrix(self, im, nghood=4):
         im = np.array( im, ndmin=3 )
         nslices, nrows, ncols = im.shape
-        # if len(im.shape) == 3:
-        #     nslices = im.shape[2]
-        # else:
-        #     nslices = 1
         npts = nrows * ncols * nslices
-        # print 'start'
         if nghood == 8:
             nr = np.array( [-1, -1, -1, 0, 0, 1, 1, 1] )
             nc = np.array( [-1, 0, 1, -1, 1, -1, 0, 1] )

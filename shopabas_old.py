@@ -21,27 +21,27 @@ import ConfigParser
 
 
 def load_parameters(self, config_path):
-        config = ConfigParser.ConfigParser()
-        config.read(config_path)
+    config = ConfigParser.ConfigParser()
+    config.read(config_path)
 
-        params = dict()
+    params = dict()
 
-        # an automatic way
-        for section in config.sections():
-            for option in config.options(section):
+    # an automatic way
+    for section in config.sections():
+        for option in config.options(section):
+            try:
+                params[option] = config.getint(section, option)
+            except ValueError:
                 try:
-                    params[option] = config.getint(section, option)
+                    params[option] = config.getfloat(section, option)
                 except ValueError:
-                    try:
-                        params[option] = config.getfloat(section, option)
-                    except ValueError:
-                        if option == 'voxel_size':
-                            str = config.get(section, option)
-                            params[option] = np.array(map(int, str.split(', ')))
-                        else:
-                            params[option] = config.get(section, option)
+                    if option == 'voxel_size':
+                        str = config.get(section, option)
+                        params[option] = np.array(map(int, str.split(', ')))
+                    else:
+                        params[option] = config.get(section, option)
 
-        return params
+    return params
 
 def make_neighborhood_matrix(im, nghood=4):
     im = np.array(im, ndmin=3)

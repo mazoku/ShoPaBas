@@ -7,7 +7,7 @@ import numpy as np
 
 import cv2
 
-import shopabas as spb
+import ShoPaBas
 
 # dcmdir = '/home/tomas/Dropbox/Work/Data/medical/org-53596059-export_liver.pklz'
 # dcmdir = '/home/tomas/Dropbox/Work/Data/medical/org-53009707-export_liver.pklz'
@@ -49,22 +49,7 @@ scale = 0.2
 set = 'man_with_hat'
 fname = '/home/tomas/Dropbox/images/Berkeley_Benchmark/set/%s/original.jpg' % set
 
-im_orig = skiio.imread(fname, as_grey=True)
-# im = cv2.resize(im_orig, None, fx=scale, fy=scale, interpolation=cv2.INTER_NEAREST)
-im_res = skitra.rescale(im_orig, scale)
+# im_orig = skiio.imread(fname, as_grey=True)
 
-# data = im_orig
-data = im_res
-# using_suppxls = True
-
-f = 5  # factor of maximal distance - max distance in uint8 image (0-255)
-# if issubclass(data.dtype.type, np.integer):
-if data.dtype == np.int:
-    max_d = f  # factor recalculated to integer image type
-# elif issubclass(data.dtype.type, np.float):
-elif data.dtype == np.float:
-    max_d = f * 1./255  # factor recalculated to float image type
-# max_d = 10
-# method_type = 'interactive'
-# method_type = 'automatic'
-spb.run(data, params='config.ini')
+spb = ShoPaBas()
+spb.run(params='config.ini', fname=fname)
