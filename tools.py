@@ -10,7 +10,7 @@ import cv2
 # from skimage import measure
 import skimage.measure as skimea
 import skimage.morphology as skimor
-import skimage.filter as skifil
+import skimage.filters as skifil
 import skimage.restoration as skires
 import skimage.segmentation as skiseg
 import scipy.stats as scista
@@ -429,8 +429,8 @@ def slim_seeds(seeds, sliceId=2):
 
 def crop_to_bbox(im, mask):
     if im.ndim == 2:
-        obj_rp = skimea.regionprops(mask.astype(np.integer), properties=('BoundingBox'))
-        bbox = obj_rp[0]['BoundingBox'] # minr, minc, maxr, maxc
+        obj_rp = skimea.regionprops(mask.astype(np.integer))
+        bbox = obj_rp[0].bbox # minr, minc, maxr, maxc
 
         bbox = np.array(bbox)
         # okrajove podminky

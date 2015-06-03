@@ -51,5 +51,5 @@ fname = '/home/tomas/Dropbox/images/Berkeley_Benchmark/set/%s/original.jpg' % se
 
 # im_orig = skiio.imread(fname, as_grey=True)
 
-spb = ShoPaBas()
-spb.run(params='config.ini', fname=fname)
+spb = ShoPaBas.ShoPaBas(params='config.ini', fname=fname)
+spb.run()
