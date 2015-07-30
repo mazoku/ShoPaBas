@@ -9,7 +9,7 @@ import py3DSeedEditor
 import matplotlib.pyplot as plt
 import skimage.segmentation as skiseg
 import tools
-import shopabas_old as sss
+# import shopabas_old as sss
 import scipy.ndimage.morphology as scindimor
 
 

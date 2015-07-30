@@ -13,7 +13,7 @@ from pylab import *
 import Tkinter as tk
 from matplotlib.backends.backend_tkagg import FigureCanvasTkAgg
 
-class PathBasins:
+class PathBasins(object):
 
     def __init__( self):
         self.data = None
