@@ -9,8 +9,11 @@ import skimage.morphology as skimor
 import skimage.transform as skitra
 from skimage import img_as_float
 import skimage.io as skiio
+import skimage.exposure as skiexp
 
 import io3d
+
+import myFigure
 
 import cv2
 import networkx as nx
@@ -118,21 +121,35 @@ class ShoPaBas:
         return params
 
     def calc_energy(self):
-        e_hom_1 = skifil.scharr(self.data)
-        selem = skimor.disk(3)
-        # e_hom_2 = abs(self.data - img_as_float(skifil.rank.mean(self.data, selem)))
-        e_hom_2 = skifil.scharr(img_as_float(skifil.rank.mean(self.data, selem)))
-        # e_hom_3 = abs(self.data - img_as_float(skifil.rank.mean_bilateral(self.data, selem, s0=10, s1=10)))
-        e_hom_3 = skifil.scharr(img_as_float(skifil.rank.mean_bilateral(self.data, selem, s0=10, s1=10)))
-        # e_hom_4 = abs(self.data - img_as_float(skifil.rank.median(self.data, selem)))
-        e_hom_4 = skifil.scharr(img_as_float(skifil.rank.median(self.data, selem)))
+        if self.data.dtype.type == np.float64:
+            data = skiexp.rescale_intensity(self.data, in_range='image', out_range=np.uint8).astype(np.uint8)
+        else:
+            data = self.data.copy()
 
-        plt.figure()
-        plt.subplot(221), plt.imshow(e_hom_1, 'gray')
-        plt.subplot(222), plt.imshow(e_hom_2, 'gray')
-        plt.subplot(223), plt.imshow(e_hom_3, 'gray')
-        plt.subplot(224), plt.imshow(e_hom_4, 'gray')
-        plt.show()
+        selem = skimor.disk(3)
+        e_hom_1 = skifil.scharr(self.data)
+        # e_hom_2 = abs(self.data - img_as_float(skifil.rank.mean(self.data, selem)))
+        e_hom_2 = skifil.scharr(img_as_float(skifil.rank.mean(data, selem)))
+        # e_hom_3 = abs(self.data - img_as_float(skifil.rank.mean_bilateral(self.data, selem, s0=10, s1=10)))
+        e_hom_3 = skifil.scharr(img_as_float(skifil.rank.mean_bilateral(data, selem, s0=50, s1=50)))
+        # e_hom_4 = abs(self.data - img_as_float(skifil.rank.median(self.data, selem)))
+        e_hom_4 = skifil.scharr(img_as_float(skifil.rank.median(data, selem)))
+
+        # plt.figure()
+        # plt.subplot(221), plt.imshow(e_hom_1, 'gray')
+        # plt.subplot(222), plt.imshow(e_hom_2, 'gray')
+        # plt.subplot(223), plt.imshow(e_hom_3, 'gray')
+        # plt.subplot(224), plt.imshow(e_hom_4, 'gray')
+        # plt.show()
+
+        myFigure.MyFigure((e_hom_1, e_hom_2, e_hom_3, e_hom_4), title=('scharr', 'mean->scharr', 'mean_bil->scharr', 'median->scharr'),
+                          int_range=True, colorbar=True)
+
+        # myFigure.MyFigure((data, skifil.rank.mean_bilateral(data, selem, s0=2, s1=2), skifil.rank.mean_bilateral(data, selem, s0=10, s1=10),
+        # skifil.rank.mean_bilateral(data, selem, s0=50, s1=50)), title=('input', 'mean', 'mean_bil', 'median'), int_range=True)
+
+        # myFigure.MyFigure((data, skifil.rank.mean(data, selem), skifil.rank.mean_bilateral(data, selem, s0=50, s1=50),
+        # skifil.rank.median(data, selem)), title=('input', 'mean', 'mean_bil', 'median'), int_range=True)
 
     def run(self):
         self.calc_energy()

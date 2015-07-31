@@ -7,7 +7,7 @@ import numbers
 class MyFigure(object):
 
     def __init__(self, data, title=None, vmin=0, vmax=255, win_cw=None, interpolation='nearest', cmap='gray',
-                 show=True):
+                 int_range=False, colorbar=False, show=True):
 
         if isinstance(data, np.ndarray):
             data = tuple((data,))
@@ -21,6 +21,9 @@ class MyFigure(object):
             elif len(win_cw) != n_imgs:
                 raise AttributeError('Wrong length of win_cw attribute.')
 
+        if int_range:
+            vmin = [x.min() for x in data]
+            vmax = [x.max() for x in data]
         if isinstance(vmin, int):
             vmin = n_imgs * tuple((vmin,))
         elif len(vmin) != n_imgs:
@@ -43,7 +46,7 @@ class MyFigure(object):
         n_cols = cols_count[n_imgs - 1]
 
         if title is None:
-            title = ["" for i in range(n_imgs)]
+            title = n_imgs * ((""),)#["" for i in range(n_imgs)]
         elif isinstance(title, str):
             title = n_imgs * tuple((title,))
         elif len(title) < n_imgs:
@@ -59,6 +62,8 @@ class MyFigure(object):
             plt.subplot(n_rows, n_cols, i+1)
 
             plt.imshow(im, cmap[i], interpolation=interpolation, vmin=vmin[i], vmax=vmax[i])
+            if colorbar:
+                plt.colorbar()
             plt.title(title[i])
 
         if show:
