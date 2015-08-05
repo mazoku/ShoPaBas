@@ -208,16 +208,22 @@ class ShoPaBas:
             dist_layer, energy_s = gt.get_shopabas(self.G, seeds[i], self.data.shape, self.params['shopabas']['max_diff_factor'])
             if ret_en_stack:
                 en_stack[i, :, :] = energy_s
-            seeds_en += energy_s
+            seeds_en += energy_s.reshape(seeds_en.shape)
 
         if ret_en_stack:
             return energy_s, en_stack
         else:
             return energy_s
-        
+
     def calc_energy(self):
         en_hom = self.calc_hom_energy()
 
+        if self.seeds is not None:
+            en_seeds = self.calc_seed_energy(ret_en_stack=False)
+        else:
+            en_seeds = 0
+
+        #TODO: zkombinovat energie - en_hom, en_seeds
         energy = en_hom
 
         return energy
@@ -240,6 +246,23 @@ class ShoPaBas:
                                                 suppxl_ints=self.suppxl_ints_im, wtype=self.params['graph']['weight_type'])
         else:
             self.G = gt.create_graph(self.data, wtype=self.params['graph']['weight_type'])
+
+        while True:
+            plt.figure()
+            plt.imshow(self.data, 'gray', interpolation='nearest')
+            pts = plt.ginput(1)
+            if not pts:
+                break
+            c, r = np.round(pts[0][:]).astype(np.int)
+
+            lind = np.ravel_multi_index((r,c), self.data.shape)
+            en_seeds = self.calc_seed_energy(seeds=lind, ret_en_stack=False)
+
+            plt.figure()
+            plt.subplot(121), plt.imshow(self.data, 'gray', interpolation='nearest')
+            plt.subplot(122), plt.imshow(en_seeds.reshape(self.data.shape), 'gray', interpolation='nearest')
+            plt.show()
+
 
 
 def load_parameters(config_name='config.cfg'):
