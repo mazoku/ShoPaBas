@@ -9,8 +9,6 @@ import scipy.ndimage.morphology as scindimor
 import cv2
 import scipy.ndimage.measurements as scindimea
 
-#----------------------------------------------------------------------------------------------------------------------
-#----------------------------------------------------------------------------------------------------------------------
 def make_neighborhood_matrix(im, nghood=4, roi=None):
     im = np.array(im, ndmin=3)
     n_slices, n_rows, n_cols = im.shape
@@ -61,7 +59,7 @@ def make_neighborhood_matrix(im, nghood=4, roi=None):
     for i in range(npts):
         s, r, c = tuple(coordsv[:, i])
         # if point doesn't lie in the roi then continue with another one
-        if not roi[s, r, n]:
+        if not roi[s, r, c]:
             continue
         for nghb in range(nghood):
             rn = r + nr[nghb]
@@ -78,9 +76,6 @@ def make_neighborhood_matrix(im, nghood=4, roi=None):
 
     return neighbors_m
 
-
-#----------------------------------------------------------------------------------------------------------------------
-#----------------------------------------------------------------------------------------------------------------------
 def graph2img( g, size):
     im = np.zeros(size, dtype=np.bool)
     nodes = g.nodes()
@@ -88,45 +83,43 @@ def graph2img( g, size):
     im[nodes_coords[0, :], nodes_coords[1, :]] = 1
     return im
 
-
-#----------------------------------------------------------------------------------------------------------------------
-#----------------------------------------------------------------------------------------------------------------------
-def create_graph( im, nghood=4, wtype=3, talk_to_me=True ):
+def create_graph( im, nghood=4, wtype=1, talk_to_me=True ):
     if talk_to_me:
         print 'Creating graph...'
-        print '\t- constructing neighborhood matrix...'
-    nghbm = make_neighborhood_matrix(im, nghood)
-    n_nodes = nghbm.shape[1]
+        print '\t- constructing neighborhood matrix ...',
+    nghb_m = make_neighborhood_matrix(im, nghood)
+    if talk_to_me:
+        print 'ok'
+    n_nodes = nghb_m.shape[1]
     imv = np.reshape(im, n_nodes).astype(float)
     G = nx.Graph()
     #adding nodes
     if talk_to_me:
-        print '\t- adding nodes...'
+        print '\t- adding nodes ...',
     G.add_nodes_from(range(n_nodes))
+    if talk_to_me:
+        print 'ok'
     #adding edges
     #sigma = imv.max() - imv.min()
     sigma = 10
     if talk_to_me:
-        print '\t- adding edges...'
+        print '\t- adding edges ...',
     for n in range(n_nodes):
-        for nghbi in range(1, nghood):
-            nghb = nghbm[nghbi, n]
+        for i in range(1, nghood):
+            nghb = nghb_m[i, n]
             if np.isnan(nghb):
                 continue
             if wtype == 1:
-                w = 1. / np.exp( - np.absolute(imv[n] - imv[nghb]) / sigma ) #w1
+                w = 1. / np.exp(- np.absolute(imv[n] - imv[nghb]) / sigma) #w1
             elif wtype == 2:
-                w = 1. / np.exp( - (imv[n] - imv[nghb])**2 / ( 2 * sigma**2 )) #w2
+                w = 1. / np.exp(- (imv[n] - imv[nghb])**2 / (2 * sigma**2)) #w2
             else:
                 w = np.absolute(imv[n] - imv[nghb]) #w3
-                # if w != 1:
-            #     print '%.0f-%.0f -> %e || %f'%(imv[n], imv[nghb], w, 1./w)
-            #     pass
             G.add_edge( n, nghb, {'weight':w} )
     if talk_to_me:
+        print 'ok'
         print '...done.'
     return G
-
 
 def get_suppxl_ints(im, suppxls):
     """Calculates mean intensities of pixels in superpixels
@@ -153,7 +146,6 @@ def get_suppxl_ints(im, suppxls):
 
     return suppxl_ints
 
-
 def remove_empty_suppxls(suppxls):
     """Remove empty superpixels. Sometimes there are superpixels(labels), which are empty. To overcome subsequent
     problems, these empty superpixels should be removed.
@@ -171,7 +163,6 @@ def remove_empty_suppxls(suppxls):
             new_supps[np.nonzero(sup)] = idx
             idx += 1
     return new_supps
-
 
 def make_neighborhood_matrix_from_suppxls(suppxls, suppxls_ints, roi=None):
 
@@ -222,7 +213,6 @@ def make_neighborhood_matrix_from_suppxls(suppxls, suppxls_ints, roi=None):
     # plt.imshow(suppxls, interpolation='nearest')
     # plt.show()
     return nghb_m
-
 
 def create_graph_from_suppxls(im, wtype=3, roi=None, suppxl_ints=None, suppxls=None, n_segments=100, compactness=10):
     if suppxls is None:
@@ -279,9 +269,6 @@ def create_graph_from_suppxls(im, wtype=3, roi=None, suppxl_ints=None, suppxls=N
 
     return G, suppxls
 
-
-#----------------------------------------------------------------------------------------------------------------------
-#----------------------------------------------------------------------------------------------------------------------
 def splitMST(T, getimg=False, imshape=(0,0)):
     maxw = 0
     maxn = 0
@@ -312,9 +299,6 @@ def splitMST(T, getimg=False, imshape=(0,0)):
     else:
         return cclist
 
-
-#----------------------------------------------------------------------------------------------------------------------
-#----------------------------------------------------------------------------------------------------------------------
 def getGraphCost(G):
     wsum = 0
     for u, v, edata in G.edges(data=True):
@@ -328,7 +312,6 @@ def getGraphCost(G):
 
     return score
 
-
 def get_graph_dists(g, seed, maxd, shape):
     #compute dists in graph from current seed
     dists, path = nx.single_source_dijkstra(g, seed, cutoff=maxd)
@@ -340,3 +323,36 @@ def get_graph_dists(g, seed, maxd, shape):
     dist_layer = dist_layer.reshape(shape)
 
     return dist_layer
+
+def get_shopabas(G, seed, data_shape, max_d=10, init_dist_val=None, suppxls=None, using_superpixels=False):
+    if init_dist_val is None:
+        init_dist_val = 2 * max_d
+
+    n_pts = np.prod(data_shape)
+
+    # urceni vzdalenosti od noveho seedu
+    dists, _ = nx.single_source_dijkstra(G, seed, cutoff=max_d)
+
+    # z rostouci vzdalenosti udelam klesajici (penalizacni) energii
+    energy_s = np.zeros(n_pts)
+    dists_items_array = np.array(dists.items())
+    dist_layer = init_dist_val * np.ones(data_shape)
+
+    if using_superpixels:
+        idxs = dists_items_array[:, 0].astype(np.uint32)
+        dists = dists_items_array[:, 1]
+        energy_s_im = np.zeros(data_shape)
+        for i in range(len(idxs)):
+            suppxl = suppxls == idxs[i]
+            energy_s_im[np.nonzero(suppxl)] = max_d - dists[i]
+            energy_s = energy_s_im.flatten()
+            dist_layer[np.nonzero(suppxl)] = dists[i]
+    else:
+        energy_s[dists_items_array[:, 0].astype(np.uint32)] = max_d - dists_items_array[:, 1]
+
+        # vsechny body inicializuji max. vzdalenost max_d
+        dist_layer = init_dist_val * np.ones(n_pts)
+        dist_layer[dists_items_array[:, 0].astype(np.uint32)] = dists_items_array[:, 1]
+        dist_layer = dist_layer.reshape(data_shape)
+
+    return dist_layer, energy_s

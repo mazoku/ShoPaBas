@@ -12,18 +12,20 @@ import skimage.transform as skitra
 from skimage import img_as_float
 import skimage.io as skiio
 import skimage.exposure as skiexp
+import skimage.segmentation as skiseg
 
 import io3d
 
 import myFigure
 import graph_tools as gt
+import py3DSeedEditor
 
 import cv2
 import networkx as nx
 import matplotlib.pyplot as plt
 from matplotlib import cm
 import Tkinter as tk
-from matplotlib.backends.backend_tkagg import FigureCanvasTkAgg
+# from matplotlib.backends.backend_tkagg import FigureCanvasTkAgg
 
 import ConfigParser
 
@@ -37,7 +39,7 @@ DATA_IMG = 1
 
 class ShoPaBas:
 
-    def __init__(self, params='config.ini', data=None, data_type=DATA_IMG, fname=None, mask=None, slice=None):
+    def __init__(self, params='config.cfg', data=None, data_type=DATA_IMG, fname=None, mask=None, slice=None):
         self.data_orig = None  # input data in original form
         self.data = None  # working data represents data after smoothing etc.
         self.mask_orig = None  # input mask in original form
@@ -68,9 +70,9 @@ class ShoPaBas:
         print 'ok'
 
         if issubclass(self.data_orig.dtype.type, np.int):
-            self.max_d = self.params['max_diff_factor']  # factor recalculated to integer image type
+            self.max_d = self.params['general']['max_diff_factor']  # factor recalculated to integer image type
         elif issubclass(self.data_orig.dtype.type, np.float):
-            self.max_d = self.params['max_diff_factor'] * 1./255  # factor recalculated to float image type
+            self.max_d = self.params['general']['max_diff_factor'] * 1./255  # factor recalculated to float image type
 
         # --  preparing the data -----
         if mask is None:
@@ -87,21 +89,62 @@ class ShoPaBas:
 
         self.data = img_as_float(self.data)
 
-        if self.params['scale'] != 1:
-            self.data = skitra.rescale(self.data, self.params['scale'], mode='nearest', preserve_range=True)
-            self.mask = skitra.rescale(self.mask, self.params['scale'], mode='nearest', preserve_range=True)
-        # elif issubclass(self.data.dtype.type, np.int):
-            # self.data = img_as_float(self.data)
+        if self.params['general']['scale'] != 1:
+            self.data = skitra.rescale(self.data, self.params['general']['scale'], mode='nearest', preserve_range=True)
+            self.mask = skitra.rescale(self.mask, self.params['general']['scale'], mode='nearest', preserve_range=True)
 
         self.data, self.mask = tools.crop_to_bbox(self.data, self.mask)
 
         # --  data smoothing  -----
-        if self.params['smoothing']:
+        if self.params['smoothing']['smooth']:
             self.data = tools.smoothing_tv(self.data, 0.05, sliceId=0)
             # self.data = tools.smoothing_bilateral(self.data, sliceId=0)
 
         self.data = self.data * self.mask
+
+        self.G = None  # graph of the image
+
+        self.suppxls = None  # superpixels
+        self.suppxl_ints_im = None  # image containing intensities of derived superpixels (insteadd of suppxls' labels
+
         # py3DSeedEditor.py3DSeedEditor(liver_s).show()
+
+    def create_superpixels(self):
+        data = self.data.copy()
+        mask = self.mask.copy()
+        print 'Calculating superpixels ...',
+        if data.ndim == 2:
+            data_rgb = np.dstack((data, data, data))
+            suppxls = skiseg.slic(data_rgb, n_segments=100)
+        else:
+            suppxls = tools.slics_3D(data, n_segments=100, compactness=10, pseudo_3D=False)
+        # py3DSeedEditor.py3DSeedEditor(suppxls, range_per_slice=True).show()
+        print 'ok'
+
+        print 'Masking and relabeling superpixels ...',
+        # mask superpixels
+        suppxls = mask * (suppxls + 1)  # +1 because suppxls starts with 0
+        suppxls -= 1  # -1 to shift background to -1 and suppxls first index back to 0
+        print 'ok'
+
+        plt.figure()
+        data_v = skiexp.rescale_intensity(data, out_range=(0,255)).astype(np.uint8)
+        plt.imshow(skiseg.mark_boundaries(data_v, suppxls.astype(np.uint8)))
+        plt.axis('off')
+        plt.show()
+
+        n_suppxls = len(np.unique(suppxls))
+        print '\t# of superpixels: ', n_suppxls
+
+        # relabel them to overcome problems with superpixels cutted with ROI
+        suppxls = tools.relabel(suppxls)
+        # py3DSeedEditor.py3DSeedEditor(suppxls).show()
+
+        print 'Calculating superpixel intensities ...',
+        suppxl_ints_im = tools.suppxl_ints2im(suppxls, im=data)
+        print 'ok'
+
+        return suppxls, suppxl_ints_im
 
     def calc_hom_energy(self, type='mean_bil', normalise=False):
         if self.data.dtype.type == np.float64:
@@ -148,29 +191,55 @@ class ShoPaBas:
 
         return hom
 
-    def calc_seed_energy(self, seeds=None):
+    def calc_seed_energy(self, seeds=None, data=None, ret_en_stack=True):
         if seeds is None:
-            seeds = self.seeds
+            seeds = self.seeds.copy()
+        if not isinstance(seeds, list):
+            seeds = list((seeds,))
 
+        if data is None:
+            data = self.data.copy()
+        seeds_en = np.zeros(data.shape)
 
+        if ret_en_stack:
+            en_stack = np.zeros(np.hstack((len(seeds), data.shape)))
 
+        for i in range(len(seeds)):
+            dist_layer, energy_s = gt.get_shopabas(self.G, seeds[i], self.data.shape, self.params['shopabas']['max_diff_factor'])
+            if ret_en_stack:
+                en_stack[i, :, :] = energy_s
+            seeds_en += energy_s
+
+        if ret_en_stack:
+            return energy_s, en_stack
+        else:
+            return energy_s
+        
     def calc_energy(self):
         en_hom = self.calc_hom_energy()
+
+        energy = en_hom
+
+        return energy
 
     def run(self):
 
         print 'Calculating initial energy ...',
-        self.calc_energy()
+        self.energy = self.calc_energy()
         print 'ok'
 
         #-----------------------------------
-        print 'Constructing graph ...',
-        if self.params['using_superpixels']:
-            G, suppxls = gt.create_graph_from_suppxls(data_s, roi=mask, suppxls=suppxls, suppxl_ints=suppxl_ints_im, wtype=params['weight_type'])
+        if self.params['general']['using_superpixels']:
+            self.suppxls, self.suppxl_ints_im = self.create_superpixels()
+
+            py3DSeedEditor.py3DSeedEditor(self.suppxl_ints_im).show()
+
+        #-----------------------------------
+        if self.params['general']['using_superpixels']:
+            self.G, _ = gt.create_graph_from_suppxls(self.data, roi=self.mask, suppxls=self.suppxls,
+                                                suppxl_ints=self.suppxl_ints_im, wtype=self.params['graph']['weight_type'])
         else:
-            G = create_graph(data_s, wtype=params['weight_type'])
-            suppxls = None
-        print 'ok'
+            self.G = gt.create_graph(self.data, wtype=self.params['graph']['weight_type'])
 
 
 def load_parameters(config_name='config.cfg'):

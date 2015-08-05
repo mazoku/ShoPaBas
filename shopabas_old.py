@@ -481,7 +481,7 @@ def iterate(G, im, mask, max_d=10, max_iter=10, using_superpixels=False, suppxls
     return label_im, seed_coords_l
 
 
-def automatic_lowest_energy(, iterations=10):
+def automatic_lowest_energy(self, iterations=10):
         # iteration = 0
         srcsen = np.zeros( self.G.number_of_nodes() )
         used = np.ones( self.G.number_of_nodes(), dtype=np.bool )
