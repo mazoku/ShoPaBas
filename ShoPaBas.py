@@ -1,5 +1,7 @@
 __author__ = 'tomas'
 
+import os
+
 import numpy as np
 import scipy.io as scio
 
@@ -14,6 +16,7 @@ import skimage.exposure as skiexp
 import io3d
 
 import myFigure
+import graph_tools as gt
 
 import cv2
 import networkx as nx
@@ -27,6 +30,7 @@ import ConfigParser
 from myFigure import *
 
 import tools
+import json
 
 DATA_DICOM = 0
 DATA_IMG = 1
@@ -40,9 +44,11 @@ class ShoPaBas:
         self.mask = None  # working mask represents mask after resizing, bounding boxing etc.
         self.max_d = 0  # maximal allowed distance of a point from the seed in a basin
 
+        self.seeds = None  # list of seed points
+
         # --  preparing parameters -----
         if isinstance(params, str):
-            self.params = self.load_parameters(params)
+            self.params = load_parameters(params)
 
         # -- loading data -----
         print 'loading data ...',
@@ -97,63 +103,89 @@ class ShoPaBas:
         self.data = self.data * self.mask
         # py3DSeedEditor.py3DSeedEditor(liver_s).show()
 
-    def load_parameters(self, config_path):
-        config = ConfigParser.ConfigParser()
-        config.read(config_path)
-
-        params = dict()
-
-        # an automatic way
-        for section in config.sections():
-            for option in config.options(section):
-                try:
-                    params[option] = config.getint(section, option)
-                except ValueError:
-                    try:
-                        params[option] = config.getfloat(section, option)
-                    except ValueError:
-                        if option == 'voxel_size':
-                            str = config.get(section, option)
-                            params[option] = np.array(map(int, str.split(', ')))
-                        else:
-                            params[option] = config.get(section, option)
-
-        return params
-
-    def calc_energy(self):
+    def calc_hom_energy(self, type='mean_bil', normalise=False):
         if self.data.dtype.type == np.float64:
             data = skiexp.rescale_intensity(self.data, in_range='image', out_range=np.uint8).astype(np.uint8)
         else:
             data = self.data.copy()
 
         selem = skimor.disk(3)
-        e_hom_1 = skifil.scharr(self.data)
-        # e_hom_2 = abs(self.data - img_as_float(skifil.rank.mean(self.data, selem)))
-        e_hom_2 = skifil.scharr(img_as_float(skifil.rank.mean(data, selem)))
-        # e_hom_3 = abs(self.data - img_as_float(skifil.rank.mean_bilateral(self.data, selem, s0=10, s1=10)))
-        e_hom_3 = skifil.scharr(img_as_float(skifil.rank.mean_bilateral(data, selem, s0=50, s1=50)))
-        # e_hom_4 = abs(self.data - img_as_float(skifil.rank.median(self.data, selem)))
-        e_hom_4 = skifil.scharr(img_as_float(skifil.rank.median(data, selem)))
+        if type == 'mean':
+            hom = skifil.scharr(img_as_float(skifil.rank.mean(data, selem)))
+        elif type == 'mean_bil':
+            hom = skifil.scharr(img_as_float(skifil.rank.mean_bilateral(data, selem, s0=50, s1=50)))
+        elif type == 'median':
+            hom = skifil.scharr(img_as_float(skifil.rank.median(data, selem)))
+        else:
+            hom = skifil.scharr(self.data)
 
+        if normalise:
+            hom = skiexp.rescale_intensity(hom, out_range=(0,1))
+
+        # normalize gradient and calculate mean -----
+        # hom_1 = skifil.scharr(img_as_float(skifil.rank.mean(data, selem)))
+        # hom_2 = skifil.scharr(img_as_float(skifil.rank.mean_bilateral(data, selem, s0=50, s1=50)))
+        # hom_3 = skifil.scharr(img_as_float(skifil.rank.median(data, selem)))
+        # hom_norm = np.zeros((4, data.shape[0], data.shape[1]))
+        # hom_norm[0, :, :] = skiexp.rescale_intensity(hom_1, out_range=(0,1))
+        # hom_norm[1, :, :] = skiexp.rescale_intensity(hom_2, out_range=(0,1))
+        # hom_norm[2, :, :] = skiexp.rescale_intensity(hom_3, out_range=(0,1))
+        # hom_norm[3, :, :] = skiexp.rescale_intensity(hom_4, out_range=(0,1))
+        #
+        # hom_norm = np.mean(hom_norm, 0)
+        #
         # plt.figure()
-        # plt.subplot(221), plt.imshow(e_hom_1, 'gray')
-        # plt.subplot(222), plt.imshow(e_hom_2, 'gray')
-        # plt.subplot(223), plt.imshow(e_hom_3, 'gray')
-        # plt.subplot(224), plt.imshow(e_hom_4, 'gray')
-        # plt.show()
+        # plt.imshow(hom_norm, 'gray', interpolation='nearest')
+        # plt.colorbar()
+        # -----
 
-        myFigure.MyFigure((e_hom_1, e_hom_2, e_hom_3, e_hom_4), title=('scharr', 'mean->scharr', 'mean_bil->scharr', 'median->scharr'),
-                          int_range=True, colorbar=True)
+        # myFigure.MyFigure((skifil.scharr(self.data),
+        #                    skifil.scharr(img_as_float(skifil.rank.mean(data, selem))),
+        #                    skifil.scharr(img_as_float(skifil.rank.mean_bilateral(data, selem, s0=50, s1=50))),
+        #                    skifil.scharr(img_as_float(skifil.rank.median(data, selem)))),
+        #                   title=('scharr', 'mean->scharr', 'mean_bil->scharr', 'median->scharr'),
+        #                   int_range=True, colorbar=True)
 
-        # myFigure.MyFigure((data, skifil.rank.mean_bilateral(data, selem, s0=2, s1=2), skifil.rank.mean_bilateral(data, selem, s0=10, s1=10),
-        # skifil.rank.mean_bilateral(data, selem, s0=50, s1=50)), title=('input', 'mean', 'mean_bil', 'median'), int_range=True)
+        return hom
 
-        # myFigure.MyFigure((data, skifil.rank.mean(data, selem), skifil.rank.mean_bilateral(data, selem, s0=50, s1=50),
-        # skifil.rank.median(data, selem)), title=('input', 'mean', 'mean_bil', 'median'), int_range=True)
+    def calc_seed_energy(self, seeds=None):
+        if seeds is None:
+            seeds = self.seeds
+
+
+
+    def calc_energy(self):
+        en_hom = self.calc_hom_energy()
 
     def run(self):
-        self.calc_energy()
 
+        print 'Calculating initial energy ...',
+        self.calc_energy()
+        print 'ok'
+
+        #-----------------------------------
+        print 'Constructing graph ...',
+        if self.params['using_superpixels']:
+            G, suppxls = gt.create_graph_from_suppxls(data_s, roi=mask, suppxls=suppxls, suppxl_ints=suppxl_ints_im, wtype=params['weight_type'])
+        else:
+            G = create_graph(data_s, wtype=params['weight_type'])
+            suppxls = None
+        print 'ok'
+
+
+def load_parameters(config_name='config.cfg'):
+    if config_name != '':
+        if os.path.isfile(config_name):
+            cf_file = open(config_name, "r")
+            lines = ""
+            for line in cf_file:
+                if "#" not in line:
+                    lines += line
+            cf_file.close()
+            params = json.loads(lines)
+            return params
+        else:
+            raise IOError('%s is invalid file path' % config_name)
 
 #----------------------------------------------------------------------------------------------------------------------
 if __name__ == "__main__":
@@ -194,5 +226,8 @@ if __name__ == "__main__":
     # fname = '/home/tomas/Data/liver_segmentation/tryba/data_other/org-exp_185_48441644_arterial_5.0_B30f-.pklz'
 
 
+
     spb = ShoPaBas(fname=fname, data_type=DATA_DICOM, slice=slice)
     spb.run()
+
+    # TODO: 
