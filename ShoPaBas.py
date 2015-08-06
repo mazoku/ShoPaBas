@@ -36,6 +36,12 @@ from myFigure import *
 import tools
 import json
 
+# adding morphsnakes
+import sys
+sys.path.append('/home/tomas/Projects/morphsnakes/')
+import morphsnakes
+
+# defining constants
 DATA_DICOM = 0
 DATA_IMG = 1
 
@@ -273,12 +279,25 @@ class ShoPaBas:
                 break
             c, r = np.round(pts[0][:]).astype(np.int)
 
+            # calculating shopabas
             lind = np.ravel_multi_index((r,c), self.data.shape)
             en_seeds = self.calc_seed_energy(seeds=lind, ret_en_stack=False)
 
+            # calculating morphsnakes
+            lind = np.ravel_multi_index((r,c), self.data.shape)
+            # self.max_d = 10 / 255
+            start = self.calc_seed_energy(seeds=lind, ret_en_stack=False).reshape(self.data.shape)
+            gI = morphsnakes.gborders(self.data, alpha=2000, sigma=1)
+            # Morphological GAC. Initialization of the level-set.
+            mgac = morphsnakes.MorphGAC(gI, smoothing=1, threshold=0.31, balloon=1)
+            mgac.levelset = start
+            mgac.run(iterations=50)
+
+
             plt.figure()
-            plt.subplot(121), plt.imshow(self.data, 'gray', interpolation='nearest')
-            plt.subplot(122), plt.imshow(en_seeds.reshape(self.data.shape), 'gray', interpolation='nearest')
+            plt.subplot(131), plt.imshow(self.data, 'gray', interpolation='nearest')
+            plt.subplot(132), plt.imshow(en_seeds.reshape(self.data.shape), 'gray', interpolation='nearest')
+            plt.subplot(133), plt.imshow(mgac.levelset, 'gray', interpolation='nearest')
             plt.show()
 
 
@@ -340,4 +359,4 @@ if __name__ == "__main__":
     spb = ShoPaBas(fname=fname, data_type=DATA_DICOM, slice=slice)
     spb.run()
 
-    # TODO: 
+    # TODO: porovnat shopabas a snake
