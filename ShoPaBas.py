@@ -1,3 +1,5 @@
+from __future__ import division
+
 __author__ = 'tomas'
 
 import os
@@ -44,13 +46,13 @@ class ShoPaBas:
         self.data = None  # working data represents data after smoothing etc.
         self.mask_orig = None  # input mask in original form
         self.mask = None  # working mask represents mask after resizing, bounding boxing etc.
-        self.max_d = 0  # maximal allowed distance of a point from the seed in a basin
-
         self.seeds = None  # list of seed points
 
         # --  preparing parameters -----
         if isinstance(params, str):
             self.params = load_parameters(params)
+
+        self.max_d = self.params['shopabas']['max_diff_factor']  # fmaximal allowed distance in a shopabas
 
         # -- loading data -----
         print 'loading data ...',
@@ -69,11 +71,6 @@ class ShoPaBas:
             raise IOError('No data or filename were specified.')
         print 'ok'
 
-        if issubclass(self.data_orig.dtype.type, np.int):
-            self.max_d = self.params['general']['max_diff_factor']  # factor recalculated to integer image type
-        elif issubclass(self.data_orig.dtype.type, np.float):
-            self.max_d = self.params['general']['max_diff_factor'] * 1./255  # factor recalculated to float image type
-
         # --  preparing the data -----
         if mask is None:
             self.mask_orig = np.ones(self.data_orig.shape, dtype=np.bool)
@@ -87,7 +84,9 @@ class ShoPaBas:
             self.data = self.data_orig.copy()
             self.mask = self.mask_orig.copy()
 
-        self.data = img_as_float(self.data)
+        # converting data (w.r.t. window width and level) to float <0,1>
+        self.data = self.window_data(self.data.copy(), out_range=(0, 1))
+        self.max_d *= 1./255  # distance recalculated to float image type
 
         if self.params['general']['scale'] != 1:
             self.data = skitra.rescale(self.data, self.params['general']['scale'], mode='nearest', preserve_range=True)
@@ -97,7 +96,8 @@ class ShoPaBas:
 
         # --  data smoothing  -----
         if self.params['smoothing']['smooth']:
-            self.data = tools.smoothing_tv(self.data, 0.05, sliceId=0)
+            self.data = tools.smoothing_tv(self.data, weight=self.params['smoothing']['tv_weight'],
+                                           sliceId=0, return_uint=False)
             # self.data = tools.smoothing_bilateral(self.data, sliceId=0)
 
         self.data = self.data * self.mask
@@ -108,6 +108,24 @@ class ShoPaBas:
         self.suppxl_ints_im = None  # image containing intensities of derived superpixels (insteadd of suppxls' labels
 
         # py3DSeedEditor.py3DSeedEditor(liver_s).show()
+
+    def window_data(self, data, win_level=None, win_width=None, out_range=None):
+        if win_level is None:
+            win_level = self.params['general']['win_level']
+        if win_width is None:
+            win_width = self.params['general']['win_width']
+
+        min_i = win_level - win_width / 2
+        max_i = win_level + win_width / 2
+
+        data = np.where(data < min_i, min_i, data)
+        data = np.where(data > max_i, max_i, data)
+
+        if out_range is not None:
+            data = skiexp.rescale_intensity(data, out_range=out_range)
+
+        return data
+
 
     def create_superpixels(self):
         data = self.data.copy()
@@ -205,7 +223,7 @@ class ShoPaBas:
             en_stack = np.zeros(np.hstack((len(seeds), data.shape)))
 
         for i in range(len(seeds)):
-            dist_layer, energy_s = gt.get_shopabas(self.G, seeds[i], self.data.shape, self.params['shopabas']['max_diff_factor'])
+            dist_layer, energy_s = gt.get_shopabas(self.G, seeds[i], self.data.shape, self.max_d)
             if ret_en_stack:
                 en_stack[i, :, :] = energy_s
             seeds_en += energy_s.reshape(seeds_en.shape)
@@ -249,7 +267,7 @@ class ShoPaBas:
 
         while True:
             plt.figure()
-            plt.imshow(self.data, 'gray', interpolation='nearest')
+            plt.imshow(self.data, 'gray', interpolation='nearest'), plt.colorbar()
             pts = plt.ginput(1)
             if not pts:
                 break

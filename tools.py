@@ -244,22 +244,29 @@ def smoothing_bilateral(data, sigma_space=15, sigma_color=0.05, pseudo_3D='True'
     return data
 
 
-def smoothing_tv(data, weight=0.1, pseudo_3D=True, multichannel=False, sliceId=2):
+def smoothing_tv(data, weight=0.1, pseudo_3D=True, multichannel=False, sliceId=2, return_uint=True):
     if data.ndim == 3 and pseudo_3D:
         if sliceId == 2:
             for idx in range(data.shape[2]):
                 # temp = skifil.denoise_tv_chambolle(data[:, :, idx], weight=weight, multichannel=multichannel)
                 temp = skires.denoise_tv_chambolle(data[:, :, idx], weight=weight, multichannel=multichannel)
-                data[:, :, idx] = (255 * temp).astype(np.uint8)
+                if return_uint:
+                    data[:, :, idx] = (255 * temp).astype(np.uint8)
+                else:
+                    data[:, :, idx] = temp
         elif sliceId == 0:
             for idx in range(data.shape[0]):
                 # temp = skifil.denoise_tv_chambolle(data[idx, :, :], weight=weight, multichannel=multichannel)
                 temp = skires.denoise_tv_chambolle(data[idx, :, :], weight=weight, multichannel=multichannel)
-                data[idx, :, :] = (255 * temp).astype(np.uint8)
+                if return_uint:
+                    data[idx, :, :] = (255 * temp).astype(np.uint8)
+                else:
+                    data[:, :, idx] = temp
     else:
         # data = skifil.denoise_tv_chambolle(data, weight=weight, multichannel=False)
         data = skires.denoise_tv_chambolle(data, weight=weight, multichannel=False)
-        data = (255 * data).astype(np.uint8)
+        if return_uint:
+            data = (255 * data).astype(np.uint8)
     return data
 
 
