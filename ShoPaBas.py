@@ -277,6 +277,7 @@ class ShoPaBas:
             pts = plt.ginput(1)
             if not pts:
                 break
+            plt.close()
             c, r = np.round(pts[0][:]).astype(np.int)
 
             # calculating shopabas
@@ -293,14 +294,11 @@ class ShoPaBas:
             mgac.levelset = start
             mgac.run(iterations=50)
 
-
             plt.figure()
             plt.subplot(131), plt.imshow(self.data, 'gray', interpolation='nearest')
             plt.subplot(132), plt.imshow(en_seeds.reshape(self.data.shape), 'gray', interpolation='nearest')
             plt.subplot(133), plt.imshow(mgac.levelset, 'gray', interpolation='nearest')
             plt.show()
-
-
 
 def load_parameters(config_name='config.cfg'):
     if config_name != '':
