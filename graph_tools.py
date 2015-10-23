@@ -350,7 +350,7 @@ def get_shopabas(G, seed, data_shape, max_d=10, init_dist_val=None, suppxls=None
     else:
         energy_s[dists_items_array[:, 0].astype(np.uint32)] = max_d - dists_items_array[:, 1]
 
-        # vsechny body inicializuji max. vzdalenost max_d
+        # vsechny body inicializuji na maximalni vzdalenost max_d
         dist_layer = init_dist_val * np.ones(n_pts)
         dist_layer[dists_items_array[:, 0].astype(np.uint32)] = dists_items_array[:, 1]
         dist_layer = dist_layer.reshape(data_shape)
