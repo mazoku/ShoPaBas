@@ -197,8 +197,8 @@ def windowing(data, level=50, width=300, sub1024=False, sliceId=2):
         data -= 1024
 
     #zjisteni minimalni a maximalni density
-    minHU = level - width
-    maxHU = level + width
+    minHU = level - width / 2
+    maxHU = level + width / 2
 
     if data.ndim == 3:
         if sliceId == 2:
@@ -224,7 +224,7 @@ def smoothing(data, d=10, sigmaColor=10, sigmaSpace=10, sliceId=2):
             for idx in range(data.shape[0]):
                 data[idx,:,:] = cv2.bilateralFilter( data[idx,:,:], d=d, sigmaColor=sigmaColor, sigmaSpace=sigmaSpace )
     else:
-        data = cv2.bilateralFilter( data, d=d, sigmaColor=sigmaColor, sigmaSpace=sigmaSpace )
+        data = cv2.bilateralFilter(data, d=d, sigmaColor=sigmaColor, sigmaSpace=sigmaSpace)
     return data
 
 
