@@ -1,3 +1,5 @@
+from __future__ import division
+
 __author__ = 'tomas'
 
 from matplotlib import pyplot as plt
@@ -13,6 +15,10 @@ import skimage.morphology as skimor
 
 import io3d
 import tools
+
+import skfuzzy as fuzz
+
+import py3DSeedEditor
 
 
 def blobs(image):
@@ -125,6 +131,85 @@ def holes_and_peaks(image, segmentation):
 
     return filled
 
+def fcm(img, mask, max_centers=2, all_labels=False):
+    if img.ndim == 2:
+        is_2D = True
+    else:
+        is_2D = False
+
+    coords = np.nonzero(mask)
+    data = img[coords]
+    # alldata = np.vstack((coords[0], coords[1], data))
+    alldata = np.vstack((data, data))
+    # alldata = np.vstack((data, data))
+
+    fpcs = []
+    fpc_max = 0
+    u_o = None
+
+    if all_labels:
+        labels_all = np.zeros(np.hstack((img.shape[0], img.shape[1], max_centers - 1)))
+
+    for ncenters in range(2, max_centers + 1):
+        print 'calculating for %i centers...' % ncenters
+        # cntr, u, u0, d, jm, p, fpc = fuzz.cluster.cmeans(alldata, ncenters, 2, error=0.005, maxiter=1000, init=None)
+        cntr, u, u0, d, jm, p, fpc = fuzz.cluster.cmeans(alldata, ncenters, 2, error=0.005, maxiter=1000, init=None)
+
+        if all_labels:
+            # Store partitioning
+            cm = np.argmax(u, axis=0) + 1  # cluster membership
+            labs = np.zeros(img.shape)
+            labs[coords] = cm
+            labels_all[:, :, ncenters - 2] = labs
+
+        # Store fpc values for later
+        fpcs.append(fpc)
+
+        # Test the result
+        if fpc > fpc_max:
+            fpc_max = fpc
+            u_o = u
+
+    cm = np.argmax(u_o, axis=0) + 1  # cluster membership
+    labels = np.zeros(img.shape)
+    labels[coords] = cm
+
+    print fpcs
+
+    if not all_labels:
+        if is_2D:
+            plt.figure()
+            plt.subplot(121), plt.imshow(img, 'gray', interpolation='nearest'), plt.axis('off')
+            plt.subplot(122), plt.imshow(labels, 'gray', interpolation='nearest'), plt.axis('off')
+        else:
+            py3DSeedEditor.py3DSeedEditor(labels).show()
+
+    if all_labels and is_2D:
+        plt.figure()
+        plt.subplot(221), plt.imshow(img, 'gray', interpolation='nearest'), plt.axis('off'), plt.title('original')
+        plt.subplot(222), plt.imshow(labels_all[:, :, 0], 'gray', interpolation='nearest'), plt.axis('off')
+        plt.title('fpcs=%.2f' % fpcs[0])
+        plt.subplot(223), plt.imshow(labels_all[:, :, 1], 'gray', interpolation='nearest'), plt.axis('off')
+        plt.title('fpcs=%.2f' % fpcs[1])
+        plt.subplot(224), plt.imshow(labels_all[:, :, 2], 'gray', interpolation='nearest'), plt.axis('off')
+        plt.title('fpcs=%.2f' % fpcs[2])
+
+    plt.show()
+
+        # Plot assigned clusters, for each data point in training set
+        # cluster_membership = np.argmax(u, axis=0)
+        # for j in range(ncenters):
+        #     ax.plot(xpts[cluster_membership == j],
+        #             ypts[cluster_membership == j], '.', color=colors[j])
+
+        # Mark the center of each fuzzy cluster
+        # for pt in cntr:
+        #     ax.plot(pt[0], pt[1], 'rs')
+
+        # ax.set_title('Centers = {0}; FPC = {1:.2f}'.format(ncenters, fpc))
+        # ax.axis('off')
+
+    # fig1.tight_layout()
 
 #----------------------------------------------------------------------------------------------------------------------
 if __name__ == "__main__":
@@ -167,8 +252,8 @@ if __name__ == "__main__":
     dr = io3d.DataReader()
     if fname is not None:
         datap = dr.Get3DData(fname, dataplus_format=True)
-        img = datap['data3d'][slice, :, :]
-        mask = datap['segmentation'][slice, :, :]
+        img = datap['data3d']#[slice, :, :]
+        mask = datap['segmentation']#[slice, :, :]
 
         # windowing
         img = tools.windowing(img).astype(np.uint8)
@@ -185,9 +270,13 @@ if __name__ == "__main__":
     else:
         image_rgb = data.hubble_deep_field()[0:500, 0:500]
         img = rgb2gray(image_rgb)
+        mask = np.ones_like(img)
 
-    # blobs(img)
-    # censure_features(img)
-    # daisy_features(img)
-    # hog_features(img)
-    filled = holes_and_peaks(img, mask)
+    img_s = img[slice, :, :]
+    mask_s = mask[slice, :, :]
+    # blobs(img_s)
+    # censure_features(img_s)
+    # daisy_features(img_s)
+    # hog_features(img_s)
+    # filled = holes_and_peaks(img_s, mask_s)
+    fcm(img_s, mask_s, all_labels=False)
