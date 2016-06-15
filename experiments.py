@@ -1,3 +1,5 @@
+from __future__ import division
+
 __author__ = 'tomas'
 
 from matplotlib import pyplot as plt
@@ -13,6 +15,10 @@ import skimage.morphology as skimor
 
 import io3d
 import tools
+
+import skfuzzy as fuzz
+
+import py3DSeedEditor
 
 
 def blobs(image):
@@ -125,6 +131,50 @@ def holes_and_peaks(image, segmentation):
 
     return filled
 
+def fcm(img, mask=None, n_clusters=2, show=False):
+    if img.ndim == 2:
+        is_2D = True
+    else:
+        is_2D = False
+
+    if mask is None:
+        mask = np.ones_like(img)
+
+    coords = np.nonzero(mask)
+    data = img[coords]
+    # alldata = np.vstack((coords[0], coords[1], data))
+    alldata = data.reshape((1, data.shape[0]))
+
+    cntr, u, u0, d, jm, p, fpc = fuzz.cluster.cmeans(alldata, n_clusters, 2, error=0.005, maxiter=1000, init=None)
+
+    # sorting the results in ascending order
+    idx = np.argsort(cntr[:, 0])
+    cntr = cntr[idx, :]
+    u = u[idx, :]
+
+    cm = np.argmax(u, axis=0) + 1  # cluster membership
+    labels = np.zeros(img.shape)
+    labels[coords] = cm
+
+    # calculating cluster memberships
+    mems = np.zeros(((n_clusters,) + img.shape))
+    for i in range(n_clusters):
+        cp = u[i, :] + 1  # cluster membership
+        mem = np.zeros(img.shape)
+        mem[coords] = cp
+        mems[i,...] = mem
+
+    if show:
+        if is_2D:
+            plt.figure()
+            plt.subplot(121), plt.imshow(img, 'gray', interpolation='nearest'), plt.axis('off'), plt.title('input')
+            plt.subplot(122), plt.imshow(labels, 'gray', interpolation='nearest'), plt.axis('off'), plt.title('fcm')
+        # else:
+            # py3DSeedEditor.py3DSeedEditor(labels).show()
+
+        plt.show()
+
+    return mems, cntr, fpc
 
 #----------------------------------------------------------------------------------------------------------------------
 if __name__ == "__main__":
@@ -167,8 +217,8 @@ if __name__ == "__main__":
     dr = io3d.DataReader()
     if fname is not None:
         datap = dr.Get3DData(fname, dataplus_format=True)
-        img = datap['data3d'][slice, :, :]
-        mask = datap['segmentation'][slice, :, :]
+        img = datap['data3d']#[slice, :, :]
+        mask = datap['segmentation']#[slice, :, :]
 
         # windowing
         img = tools.windowing(img).astype(np.uint8)
@@ -185,9 +235,16 @@ if __name__ == "__main__":
     else:
         image_rgb = data.hubble_deep_field()[0:500, 0:500]
         img = rgb2gray(image_rgb)
+        mask = np.ones_like(img)
 
-    # blobs(img)
-    # censure_features(img)
-    # daisy_features(img)
-    # hog_features(img)
-    filled = holes_and_peaks(img, mask)
+    img_s = img[slice, :, :]
+    mask_s = mask[slice, :, :]
+    # img_s = img[slice:slice+2, :, :]
+    # mask_s = mask[slice:slice+2, :, :]
+    # blobs(img_s)
+    # censure_features(img_s)
+    # daisy_features(img_s)
+    # hog_features(img_s)
+    # filled = holes_and_peaks(img_s, mask_s)
+    fcm(img_s, mask=mask_s, n_clusters=2, show=True)
+    # fcm(img_s, mask=None, n_clusters=2, show=True)
