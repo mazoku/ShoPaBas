@@ -38,7 +38,7 @@ import json
 
 # adding morphsnakes
 import sys
-sys.path.append('/home/tomas/Projects/morphsnakes/')
+sys.path.append('/home/tomas/projects/morphsnakes/')
 import morphsnakes
 
 # defining constants
