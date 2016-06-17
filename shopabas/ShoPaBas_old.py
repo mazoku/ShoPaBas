@@ -6,6 +6,7 @@ import os
 
 import numpy as np
 import scipy.io as scio
+from collections import defaultdict
 
 from skimage import measure, segmentation
 import skimage.filters as skifil
@@ -47,7 +48,7 @@ DATA_IMG = 1
 
 class ShoPaBas:
 
-    def __init__(self, params='config.cfg', data=None, data_type=DATA_IMG, fname=None, mask=None, slice=None):
+    def __init__(self, params='config.ini', data=None, data_type=DATA_IMG, fname=None, mask=None, slice=None):
         self.data_orig = None  # input data in original form
         self.data = None  # working data represents data after smoothing etc.
         self.mask_orig = None  # input mask in original form
@@ -262,7 +263,7 @@ class ShoPaBas:
         if self.params['general']['using_superpixels']:
             self.suppxls, self.suppxl_ints_im = self.create_superpixels()
 
-            py3DSeedEditor.py3DSeedEditor(self.suppxl_ints_im).show()
+            # py3DSeedEditor.py3DSeedEditor(self.suppxl_ints_im).show()
 
         #-----------------------------------
         if self.params['general']['using_superpixels']:
@@ -300,19 +301,28 @@ class ShoPaBas:
             plt.subplot(133), plt.imshow(mgac.levelset, 'gray', interpolation='nearest')
             plt.show()
 
-def load_parameters(config_name='config.cfg'):
-    if config_name != '':
-        if os.path.isfile(config_name):
-            cf_file = open(config_name, "r")
-            lines = ""
-            for line in cf_file:
-                if "#" not in line:
-                    lines += line
-            cf_file.close()
-            params = json.loads(lines)
-            return params
-        else:
-            raise IOError('%s is invalid file path' % config_name)
+
+def load_parameters(config_name='config.ini'):
+    if os.path.isfile(config_name) and os.path.exists(config_name):
+        config = ConfigParser.ConfigParser()
+        config.read(config_name)
+        params = defaultdict(dict)
+
+        # an automatic way
+        for section in config.sections():
+            for option in config.options(section):
+                try:
+                    params[section][option] = config.getint(section, option)
+                except ValueError:
+                    try:
+                        params[section][option] = config.getfloat(section, option)
+                    except ValueError:
+                        params[section][option] = config.get(section, option)
+
+        return params
+    else:
+        raise IOError('%s is invalid file path' % config_name)
+
 
 #----------------------------------------------------------------------------------------------------------------------
 if __name__ == "__main__":

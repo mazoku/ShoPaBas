@@ -303,6 +303,7 @@ def filter_false_objects(label_im, max_ecc=0.5, min_area=10):
 
 
 def interactive(G, im, mask, max_d=10, using_superpixels=False, suppxls=None):
+    pass
 
 def iterate(G, im, mask, max_d=10, max_iter=10, using_superpixels=False, suppxls=None, is_interactive=False):
     if im.ndim == 3:
@@ -391,7 +392,7 @@ def iterate(G, im, mask, max_d=10, max_iter=10, using_superpixels=False, suppxls
             # plt.show()
 
 
-            # vymaskuji energii shopabasu podle aktualni masky
+            # vvymaskuji energii shopabasu podle aktualni masky
             energy_s_sib_im = energy_s.reshape(im.shape)
             energy_s_sib_im = energy_s_sib_im * masked_layer
             energy_s_im += energy_s_sib_im

@@ -55,7 +55,7 @@ def make_neighborhood_matrix(im, nghood=4, roi=None):
     lindv = np.reshape(lind, npts)  # linear indices in vector form
     coordsv = np.array(np.unravel_index(lindv, im.shape))  # coords in array [dim * nvoxels]
 
-    neighbors_m = np.zeros((nghood, npts))
+    neighbors_m = np.zeros((nghood, npts), dtype=np.int)
     for i in range(npts):
         s, r, c = tuple(coordsv[:, i])
         # if point doesn't lie in the roi then continue with another one
@@ -69,12 +69,14 @@ def make_neighborhood_matrix(im, nghood=4, roi=None):
             col_ko = cn < 0 or cn > (n_cols - 1)
             slice_ko = sn < 0 or sn > (n_slices - 1)
             if row_ko or col_ko or slice_ko or not roi[sn, rn, cn]:
-                neighbors_m[nghb, i] = np.NaN
+                # neighbors_m[nghb, i] = np.NaN
+                neighbors_m[nghb, i] = -1
             else:
                 indexN = np.ravel_multi_index((sn, rn, cn), im.shape)
                 neighbors_m[nghb, i] = indexN
 
     return neighbors_m
+
 
 def graph2img( g, size):
     im = np.zeros(size, dtype=np.bool)
@@ -83,7 +85,8 @@ def graph2img( g, size):
     im[nodes_coords[0, :], nodes_coords[1, :]] = 1
     return im
 
-def create_graph( im, nghood=4, wtype=1, talk_to_me=True ):
+
+def create_graph(im, nghood=4, wtype=1, talk_to_me=True):
     if talk_to_me:
         print 'Creating graph...'
         print '\t- constructing neighborhood matrix ...',
@@ -107,7 +110,7 @@ def create_graph( im, nghood=4, wtype=1, talk_to_me=True ):
     for n in range(n_nodes):
         for i in range(1, nghood):
             nghb = nghb_m[i, n]
-            if np.isnan(nghb):
+            if np.isnan(nghb) or nghb == -1:  # matice muze byt float s NaNy nebo int s -1 (nejde dat NaN do int matice)
                 continue
             if wtype == 1:
                 w = 1. / np.exp(- np.absolute(imv[n] - imv[nghb]) / sigma) #w1
